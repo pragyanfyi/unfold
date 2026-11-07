@@ -1,0 +1,23 @@
+{
+  "name": "unfold-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.17.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @unfold/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "ci:lint": "biome ci ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6"
+  }
+}

@@ -1,6 +1,23 @@
-# The npm ecosystem is added in the scaffolding step, once package.json exists.
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "fix(deps)"
+      prefix-development: "chore(deps)"
+    groups:
+      tanstack:
+        patterns: ["@tanstack/*"]
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*"]
+      tooling:
+        patterns: ["@biomejs/*", "vitest", "typescript", "@types/*"]
+        dependency-type: development
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

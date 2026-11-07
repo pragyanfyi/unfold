@@ -10,10 +10,10 @@ Please include what you found, steps to reproduce, the impact, and any suggested
 
 ### What to expect
 
-| Step | Target |
-|---|---|
-| Acknowledgement | within 3 days |
-| Initial assessment | within 7 days |
+| Step                   | Target                                            |
+| ---------------------- | ------------------------------------------------- |
+| Acknowledgement        | within 3 days                                     |
+| Initial assessment     | within 7 days                                     |
 | Fix or mitigation plan | depends on severity, communicated in the advisory |
 
 We will credit you in the advisory unless you prefer to stay anonymous. Please give us reasonable time to fix an issue before disclosing it publicly.
