@@ -1,0 +1,47 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+# The job token is intentionally read-only. Release PRs, tags and releases are
+# created with a GitHub App token, because events caused by GITHUB_TOKEN do not
+# trigger other workflows and the release PR would never run its required checks.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    if: github.repository == 'pragyanfyi/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Summarize
+        env:
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          if [ "$RELEASE_CREATED" = "true" ]; then
+            echo "Released $TAG" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No release created in this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
