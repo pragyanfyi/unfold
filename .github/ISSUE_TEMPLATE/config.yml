@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature requests and ideas
+    url: https://github.com/pragyanfyi/unfold/discussions/categories/ideas
+    about: Propose and discuss features before opening a PR.
+  - name: Questions and help
+    url: https://github.com/pragyanfyi/unfold/discussions/categories/q-a
+    about: Ask how to use or run Unfold.
+  - name: Report a security vulnerability
+    url: https://github.com/pragyanfyi/unfold/security/advisories/new
+    about: Report privately. Please do not open a public issue.

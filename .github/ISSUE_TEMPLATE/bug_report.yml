@@ -1,0 +1,54 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "bug: "
+labels: ["type:bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. For feature ideas, please use [Discussions](https://github.com/pragyanfyi/unfold/discussions/categories/ideas). For security issues, **do not** file here; see [SECURITY.md](https://github.com/pragyanfyi/unfold/blob/main/.github/SECURITY.md).
+        **Never paste API keys.**
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Chat
+        - Decision tree canvas
+        - Auth / account
+        - Keyboard shortcuts
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Unfold version
+      description: Shown in the app, or the commit SHA.
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and OS
+      placeholder: Chrome 140 on macOS 15
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output, screenshots or recordings
+      description: Remove any keys or personal data first.

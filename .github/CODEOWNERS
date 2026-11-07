@@ -1,0 +1,6 @@
+# Default owner for everything. Narrow this down as maintainers join.
+*                  @pragyanfyi
+
+# Security-sensitive and release-critical paths
+/.github/          @pragyanfyi
+/scripts/          @pragyanfyi

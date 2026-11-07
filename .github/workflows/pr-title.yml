@@ -1,0 +1,45 @@
+name: PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  validate:
+    name: Validate PR title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            test
+            docs
+            build
+            ci
+            chore
+            style
+            revert
+          scopes: |
+            web
+            auth
+            db
+            ai
+            canvas
+            chat
+            hotkeys
+            deps
+            release
+          requireScope: false
+          subjectPattern: ^[a-z0-9].+[^.]$
+          subjectPatternError: |
+            The summary "{subject}" must start with a lower-case letter or digit and must not end with a period.
