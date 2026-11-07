@@ -14,9 +14,13 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-> The application has not been scaffolded yet. This section will be completed in the scaffolding step and kept in [docs/operations/development.md](docs/operations/development.md).
+```sh
+corepack enable
+pnpm install
+pnpm dev
+```
 
-Requirements will be: Node (version in `.nvmrc`), pnpm, and nothing else. You will not need a Cloudflare account to run Unfold locally.
+You need Node (version in `.nvmrc`) and pnpm, and nothing else. You do not need a Cloudflare account to run Unfold locally. Full details are in [docs/operations/development.md](docs/operations/development.md).
 
 ## Workflow
 
@@ -41,12 +45,12 @@ We follow [Conventional Commits](https://www.conventionalcommits.org). Because P
 <type>(<scope>): <summary in lower case, imperative>
 ```
 
-| Type | Use for | Release effect |
-|---|---|---|
-| `feat` | A user-visible feature | minor |
-| `fix` | A bug fix | patch |
-| `perf` | A performance improvement | patch |
-| `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `style`, `revert` | Everything else | none |
+| Type                                                                  | Use for                   | Release effect |
+| --------------------------------------------------------------------- | ------------------------- | -------------- |
+| `feat`                                                                | A user-visible feature    | minor          |
+| `fix`                                                                 | A bug fix                 | patch          |
+| `perf`                                                                | A performance improvement | patch          |
+| `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `style`, `revert` | Everything else           | none           |
 
 Allowed scopes: `web`, `auth`, `db`, `ai`, `canvas`, `chat`, `hotkeys`, `deps`, `release`. Scopes are optional. To add one, change [`.github/workflows/pr-title.yml`](.github/workflows/pr-title.yml) in a PR.
 
