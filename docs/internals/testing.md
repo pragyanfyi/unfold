@@ -7,6 +7,7 @@ Applies to `**/*.test.{ts,tsx}` and E2E tests.
 ## Rules
 
 - Unit tests live next to the code under `apps/web/src` as `*.test.ts` / `*.test.tsx`. Vitest only discovers `src/**/*.test.{ts,tsx}` (see `apps/web/vitest.config.ts`); a test file anywhere else is silently skipped, and `--passWithNoTests` would still report success. The config is separate from `vite.config.ts` because the Cloudflare plugin cannot run inside Vitest.
+- Tests that need a DOM (components, hooks) put `// @vitest-environment jsdom` at the top of the file and use Testing Library (`@testing-library/react`); everything else runs in node. Stub `fetch` and `window.location` rather than touching the network. This is a first step; the testing ADR (issue #7) may revise the tooling.
 - New behaviour comes with tests. A bug fix comes with a regression test that fails without the fix.
 - Test behaviour, not implementation details. Prefer queries by role and label over test ids; use `data-testid` for the canvas, where roles do not apply.
 - Tests must be deterministic. No real network, no real clock dependence, no reliance on test order.
