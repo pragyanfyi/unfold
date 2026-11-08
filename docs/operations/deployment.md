@@ -29,19 +29,17 @@ Check names only (values cannot be read back): `gh secret list --env production`
 
 Add KV or D1 permissions to the token only when a change needs them.
 
-## First deploy (one-time, manual)
+## First deploy (one-time, manual) — done 2026-11-08
 
-The CI token has **Workers Scripts: Edit**, which Cloudflare maps to the Editor role. Editor can deploy and roll back an existing Worker but cannot create one; creating a Worker needs product-level Admin (source: Cloudflare "Workers permissions", read 2026-11-08). So create `unfold` once yourself, then let CI take over:
+The CI token has **Workers Scripts: Edit**, which Cloudflare maps to the Editor role. Editor can deploy and roll back an existing Worker but cannot create one; creating a Worker needs product-level Admin (source: Cloudflare "Workers permissions", read 2026-11-08). So `unfold` was created once by a maintainer, and CI only updates it.
 
-1. If the account has no `workers.dev` subdomain yet, set one in the Cloudflare dashboard (Workers & Pages), or the deploy can fail on the `workers.dev` route.
-2. From `apps/web`, logged in with `wrangler login` (your own login has the needed rights):
+The Worker was created as a **placeholder**, not by deploying the app from a development checkout: `wrangler deploy` makes the uploaded version live immediately, so deploying from a working tree could publish unreleased or uncommitted code. A small throwaway project (a Worker named `unfold` that returns "Unfold is not released yet.") was deployed with the maintainer's own `wrangler login`. The first release replaces it.
 
-   ```sh
-   pnpm run build
-   pnpm exec wrangler deploy
-   ```
+If you ever need to recreate it: make a temporary directory outside the repo with a `wrangler.jsonc` (`name: "unfold"`, `main: "index.js"`, a current `compatibility_date`) and an `index.js` that returns a plain response, then run `pnpm exec wrangler deploy --config <that file>` from `apps/web`.
 
-3. Optional hardening once the Worker exists: change the CI token to Editor on the single `unfold` Worker instead of account-wide Workers Scripts Edit. Cloudflare does not allow per-Worker access to a Worker that does not exist yet, which is why the order matters.
+The account's `workers.dev` subdomain is `pragyan-fyi`, so the Worker answers at `https://unfold.pragyan-fyi.workers.dev`.
+
+Optional hardening: change the CI token to Editor on the single `unfold` Worker instead of account-wide Workers Scripts Edit. Cloudflare does not allow per-Worker access to a Worker that does not exist yet, which is why the order matters.
 
 ## Rolling back
 
@@ -49,4 +47,4 @@ Re-run **Deploy production** from an older release tag (Actions → Deploy produ
 
 ## Known limits
 
-- **Not verified until the first run.** The workflow was checked with actionlint, and `wrangler deploy --dry-run` succeeds locally; it has not run against Cloudflare. Update this section after the first production deploy.
+- **Not verified until the first release.** The workflow was checked with actionlint, and `wrangler deploy --dry-run` succeeds locally; the workflow itself has not run against Cloudflare, and the app has not been deployed. Update this section after the first production deploy.
