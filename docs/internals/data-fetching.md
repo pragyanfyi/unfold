@@ -20,7 +20,7 @@ Applies to `apps/web/src/**/*.{ts,tsx}`.
 - Validate all input at the boundary (server function or route handler). Do not trust client data.
 - Return only the fields the client needs. Do not return database rows wholesale.
 - Route loaders may prefetch into the query client; the component then reads the same query. Do not fetch the same data twice by two different paths.
-- Anything that talks to D1 or KV opens its binding per request (see the auth and database ADRs when they land). No module-scope database handles.
+- Reach D1 through the `cloudflare:workers` env import inside a helper function (ADR 0009); do not keep request-derived state, such as a user, session or request, at module scope. KV is not used (ADR 0010).
 
 ## Errors
 

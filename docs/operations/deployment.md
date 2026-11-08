@@ -27,7 +27,7 @@ pbpaste | gh secret set CLOUDFLARE_API_TOKEN --env production --repo pragyanfyi/
 
 Check names only (values cannot be read back): `gh secret list --env production`. The name must be exactly `CLOUDFLARE_API_TOKEN`. If the list shows anything that looks like a token, the token was typed as the name: revoke it in Cloudflare and start again.
 
-Add KV or D1 permissions to the token only when a change needs them.
+Add D1 permissions (for migrations in CI) to the token only when a change needs them. KV is not used (ADR 0010).
 
 ## First deploy (one-time, manual) — done 2026-11-08
 
