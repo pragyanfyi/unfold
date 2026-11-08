@@ -31,4 +31,6 @@ A tab that stays open keeps running the JavaScript it loaded, even after a new r
 - A tab can run an old version for up to ~6 hours while it stays in front and no other trigger fires. Acceptable at the current release cadence.
 - Multiple tabs each show their own toast.
 - Adds `@tanstack/react-query` and `@tanstack/react-router-ssr-query` (the integration TanStack provides to supply the query client and carry the cache from server to browser). Both are needed for any server state later.
-- Not tested in this change: behaviour against a real deploy (the first release containing it). The logic has unit tests, and the flow was exercised once by hand against a local production build in headless Chromium.
+- The pure logic has unit tests, and the wiring (query, toast, Refresh, `vite:preloadError`) has a component test that mounts `UpdateNotifier` with a real Sonner `Toaster` in jsdom. Breaking the wiring on purpose (never notifying, a no-op Refresh, an automatic reload) makes those tests fail.
+- Adds `jsdom` and `@testing-library/react` as dev dependencies, the first component-test tooling. Issue #7 may revise it.
+- Not tested in this change: behaviour against a real deploy (the first release containing it) and Query's timers (the 1-minute focus de-duplication and the 6-hour interval). The flow was also exercised once by hand against a local production build in headless Chromium.
