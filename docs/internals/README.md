@@ -15,4 +15,4 @@ Rules for working on Unfold's code. They exist so humans, AI agents and CodeRabb
 - A rule is a short, checkable statement. If it needs a paragraph of reasoning, put the reasoning in an ADR and link it.
 - Mark anything undecided as **TBD** instead of guessing. Remove the marker when the decision is made.
 - When a rule changes, change it in the same PR as the code that needs the change.
-- CodeRabbit reads these files through `path_instructions` (added in a follow-up PR), so keep them precise.
+- CodeRabbit applies these files as review criteria through `.coderabbit.yaml` (`path_instructions` and `knowledge_base.code_guidelines`), so keep them precise.
