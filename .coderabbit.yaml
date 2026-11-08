@@ -105,6 +105,19 @@ reviews:
 knowledge_base:
   code_guidelines:
     enabled: true
+    # A plain string pattern scopes a guideline file to its own directory, so each
+    # internals file is mapped with files/applyTo to the code it governs. Patterns
+    # are comma-separated, so these globs deliberately avoid braces.
+    # Adding a docs/internals file? Add its mapping here too.
     filePatterns:
       - "AGENTS.md"
-      - "docs/internals/*.md"
+      - files: "docs/internals/web-ui.md"
+        applyTo: "apps/web/src/**/*.tsx,apps/web/src/**/*.css"
+      - files: "docs/internals/data-fetching.md"
+        applyTo: "apps/web/src/**/*.ts,apps/web/src/**/*.tsx"
+      - files: "docs/internals/byok-and-secrets.md"
+        applyTo: "apps/web/src/**/*.ts,apps/web/src/**/*.tsx,apps/web/src/**/*.test.ts,apps/web/src/**/*.test.tsx"
+      - files: "docs/internals/hotkeys.md"
+        applyTo: "apps/web/src/**/*hotkey*,apps/web/src/**/*Hotkey*,apps/web/src/**/*shortcut*,apps/web/src/**/*Shortcut*"
+      - files: "docs/internals/testing.md"
+        applyTo: "apps/web/src/**/*.test.ts,apps/web/src/**/*.test.tsx"
