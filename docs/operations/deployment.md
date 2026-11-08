@@ -29,9 +29,19 @@ Check names only (values cannot be read back): `gh secret list --env production`
 
 Add KV or D1 permissions to the token only when a change needs them.
 
-## First deploy
+## First deploy (one-time, manual)
 
-The `unfold` Worker is created by the first `wrangler deploy`. If the account has no `workers.dev` subdomain yet, set one in the Cloudflare dashboard (Workers & Pages) first, or the deploy can fail on the `workers.dev` route.
+The CI token has **Workers Scripts: Edit**, which Cloudflare maps to the Editor role. Editor can deploy and roll back an existing Worker but cannot create one; creating a Worker needs product-level Admin (source: Cloudflare "Workers permissions", read 2026-11-08). So create `unfold` once yourself, then let CI take over:
+
+1. If the account has no `workers.dev` subdomain yet, set one in the Cloudflare dashboard (Workers & Pages), or the deploy can fail on the `workers.dev` route.
+2. From `apps/web`, logged in with `wrangler login` (your own login has the needed rights):
+
+   ```sh
+   pnpm run build
+   pnpm exec wrangler deploy
+   ```
+
+3. Optional hardening once the Worker exists: change the CI token to Editor on the single `unfold` Worker instead of account-wide Workers Scripts Edit. Cloudflare does not allow per-Worker access to a Worker that does not exist yet, which is why the order matters.
 
 ## Rolling back
 
