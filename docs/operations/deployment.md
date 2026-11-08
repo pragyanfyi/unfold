@@ -47,6 +47,8 @@ Re-run **Deploy production** from an older release tag (Actions → Deploy produ
 
 ## Verified
 
+The "not yet verified" notes in [ADR 0005](../adr/0005-production-deployment.md) are a snapshot from before the first release. An Accepted ADR is not edited, so the current status is recorded here.
+
 - **2026-11-08, first production deploy:** merging release PR #14 published release `v0.1.0`, which started **Deploy production** on its own (so the `release: published` trigger fires for a release created by the release GitHub App). The run passed the release-tag guard, built, and deployed with the Editor-level CI token, replacing the placeholder. `https://unfold.pragyan-fyi.workers.dev` then served the real app, and Cloudflare's deployment list shows version tagged `v0.1.0` with the release commit in its message.
 
 ## Known limits
