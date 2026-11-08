@@ -2,17 +2,18 @@
 
 Automated scanners that run on this repository, and what to do with their output.
 
-| Tool                              | Workflow                          | Runs on                                             | Looks at                                                                                      |
-| --------------------------------- | --------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| CodeQL                            | `.github/workflows/codeql.yml`    | PRs to `main`, pushes to `main`, weekly             | JavaScript/TypeScript code and GitHub Actions workflows                                       |
-| OpenSSF Scorecard                 | `.github/workflows/scorecard.yml` | Pushes to `main`, weekly, branch-protection changes | Repository security posture (pinned actions, token permissions, branch protection, and so on) |
-| Dependabot                        | `.github/dependabot.yml`          | Weekly                                              | Outdated and vulnerable dependencies                                                          |
-| Secret scanning + push protection | Repository setting                | Every push                                          | Committed credentials                                                                         |
-| CodeRabbit                        | `.coderabbit.yaml`                | Every PR                                            | Review against `AGENTS.md` and `docs/internals`, plus gitleaks, actionlint and zizmor         |
+| Tool                              | Workflow                          | Runs on                                             | Looks at                                                                                                                                              |
+| --------------------------------- | --------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CodeQL                            | `.github/workflows/codeql.yml`    | PRs to `main`, pushes to `main`, weekly             | JavaScript/TypeScript code and GitHub Actions workflows                                                                                               |
+| OpenSSF Scorecard                 | `.github/workflows/scorecard.yml` | Pushes to `main`, weekly, branch-protection changes | Repository security posture (pinned actions, token permissions, branch protection, and so on)                                                         |
+| Dependabot                        | `.github/dependabot.yml`          | Weekly                                              | Outdated and vulnerable dependencies                                                                                                                  |
+| Secret scanning + push protection | Repository setting                | Every push                                          | Committed credentials                                                                                                                                 |
+| CodeRabbit                        | `.coderabbit.yaml`                | PRs, except drafts, Dependabot and release PRs      | Review against `AGENTS.md` and `docs/internals`, plus gitleaks, actionlint and zizmor. Lockfile, generated and `ui/` files are filtered out of review |
 
 ## Where to see results
 
-- **CodeQL and Scorecard alerts:** the repo's **Security → Code scanning** tab. Scorecard findings carry the category `scorecard`.
+- **CodeQL and Scorecard alerts on `main`:** the repo's **Security → Code scanning** tab. Scorecard findings carry the category `scorecard`.
+- **CodeQL alerts introduced by a PR:** the tab lists the default branch first, so PR-only alerts do not show there by default. Look at the PR's **Code scanning** check and its inline annotations, or filter the tab by the PR's branch.
 - **Scorecard score:** published once the workflow has run on `main`; the public report is at `https://scorecard.dev/viewer/?uri=github.com/pragyanfyi/unfold`.
 - **Dependabot:** **Security → Dependabot**, plus its PRs.
 
@@ -24,7 +25,7 @@ Automated scanners that run on this repository, and what to do with their output
 
 ## Known limitations
 
-- **Scorecard's Branch-Protection check** needs a token with admin read access to the repository's protection settings. The default `GITHUB_TOKEN` cannot read them, so that check reports as inconclusive. Providing a fine-grained token for it is optional and not set up.
-- **Fork PRs** get a read-only token, so code-scanning results cannot be uploaded from them. A failure on the upload step of a fork PR is expected and is not a code problem.
+- **Scorecard's Branch-Protection check:** the default `GITHUB_TOKEN` can read repository rulesets (which this repo uses) but not classic branch protection, which needs an admin-scoped token. Read the check's result and details instead of assuming it is inconclusive. Providing a fine-grained token is optional and not set up. Source: the `ossf/scorecard-action` README, read 2026-11-08.
+- **Fork PRs:** CodeQL runs on `pull_request`, and GitHub allows code-scanning uploads from that event even with a read-only token. A failed upload on a fork PR is therefore not expected; investigate it. Scorecard does not run on PRs. Source: GitHub docs, "Resource not accessible by integration", read 2026-11-08.
 - CodeQL and Scorecard are **not required checks** (they are not in the branch ruleset). Add them only once they have been stable for a while.
 - The Scorecard badge is not in the README yet; add it after the first successful published run.
