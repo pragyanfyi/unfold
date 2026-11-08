@@ -15,6 +15,11 @@ No shortcuts exist yet. Unfold will use TanStack Hotkeys for every shortcut, and
 - Shortcuts do not fire while the user is typing in an input, textarea or editable element, unless the entry explicitly opts in and the description says so.
 - Every action reachable by a shortcut is also reachable with the pointer.
 
+## Third-party shortcuts
+
+- Sonner binds `Alt+T` to focus the toast region. Keep it enabled (it is the only keyboard route to toasts) and list it in the `Cmd+/` list when that exists. Do not bind `Alt+T` to anything else.
+- Before adding a UI library that registers its own key handlers, check for conflicts with the registry and list its shortcuts.
+
 ## Adding a shortcut
 
 1. Add the entry to the registry with a description.

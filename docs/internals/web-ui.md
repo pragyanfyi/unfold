@@ -14,7 +14,8 @@ Applies to `apps/web/src/**/*.{tsx,css}`.
 
 - Use the theme tokens (CSS variables) defined by the shadcn setup. No hard-coded colours or one-off hex values in components.
 - Layouts must work at phone width. Do not rely on hover for any essential action.
-- Dark mode support is **TBD** until the theme setup lands; do not add a bespoke solution before then.
+- Dark mode support is **TBD**: no theme provider is mounted yet, so Sonner follows the system theme. Do not add a bespoke solution before the decision.
+- Tailwind v4 is configured in `src/styles.css`; there is no `tailwind.config` file.
 
 ## Accessibility
 

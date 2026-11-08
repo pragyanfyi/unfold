@@ -1,0 +1,24 @@
+# 4. shadcn/ui, Tailwind and Sonner for the UI
+
+- Status: Accepted
+- Date: 2026-11-08
+
+## Context
+
+The web app needs a consistent set of accessible UI primitives, and toasts for things like the update notice. We want contributors and AI agents to build UI the same way, without us maintaining a component library.
+
+## Decision
+
+- **Components:** [shadcn/ui](https://ui.shadcn.com) (Radix base, `radix-nova` preset). Components are copied into `apps/web/src/components/ui` by the CLI and owned by this repo.
+- **Styling:** Tailwind CSS v4 through `@tailwindcss/vite`. Theme tokens are CSS variables in `apps/web/src/styles.css`.
+- **Toasts:** Sonner, through the shadcn component. One `<Toaster />` is mounted in the root route. No second toast library.
+- **Adding components:** `pnpm dlx shadcn@latest add <name>` from `apps/web`, only what a change needs. Never `add --all`.
+- **Biome:** the CSS parser has `tailwindDirectives` enabled so Tailwind syntax lints and formats.
+
+## Consequences
+
+- We own the code of every component we add, so updates are manual (re-run the CLI and review the diff). CodeRabbit skips `ui/` in its path filters; review changes there by hand.
+- Sonner registers its own keyboard shortcut (`Alt+T`, focuses the toast region). It is the only keyboard route to reach toasts, so it stays enabled and must be listed in the `Cmd+/` shortcut list when that exists. See `docs/internals/hotkeys.md`.
+- `components/ui/sonner.tsx` imports `useTheme` from `next-themes` (the generated default). No theme provider is mounted yet, so Sonner follows the system theme. Dark mode setup is a later decision.
+- The shadcn CLI installs runtime packages (`shadcn`, `tw-animate-css`, `@fontsource-variable/geist`, `lucide-react`, `cn`, `next-themes`, `sonner`). The `shadcn` package provides `shadcn/tailwind.css`, imported by the stylesheet.
+- Initial setup note: `shadcn init` did not complete unattended for this TanStack Start layout (it assumed `app/globals.css` and React Server Components). `components.json` was corrected by hand (`rsc: false`, CSS at `src/styles.css`). Re-running `init` is not needed.
