@@ -24,5 +24,5 @@ Source: `pnpm why minimatch deepmerge`, the two GitHub advisories, and Dependabo
 ## Consequences
 
 - Production dependencies no longer include the CLI's tree.
-- Dependabot still reports the alerts, now with a development scope.
+- Dependabot is expected to keep reporting the alerts, with a development scope instead of runtime. This is not yet verified; check the alert scope after merge.
 - CI and deploy workflows must install dev dependencies, because the build needs `shadcn/tailwind.css`. They already do (`pnpm install --frozen-lockfile`).
