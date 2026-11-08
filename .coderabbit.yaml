@@ -50,11 +50,13 @@ reviews:
         provides, hard-coded colours instead of theme tokens, missing accessible names or labels,
         elements not operable by keyboard, and a second toast library (Sonner only).
 
-    - path: "apps/web/src/**/*{hotkey,Hotkey,shortcut,Shortcut}*.{ts,tsx}"
+    - path: "apps/web/src/**/*.{ts,tsx}"
       instructions: |
-        Hold changed code to docs/internals/hotkeys.md. Flag: shortcuts registered outside the
-        single registry, duplicate key combinations in the same scope, shortcuts that fire while
-        typing in an input, and overriding browser or OS shortcuts.
+        Only when the change adds or touches keyboard handling (keydown or key listeners, hotkey
+        hooks, shortcut definitions), hold it to docs/internals/hotkeys.md. Flag: shortcuts
+        registered outside the single registry, duplicate key combinations in the same scope,
+        shortcuts that fire while typing in an input, and overriding browser or OS shortcuts.
+        Otherwise ignore this instruction.
 
     - path: "**/*.test.{ts,tsx}"
       instructions: |
@@ -118,6 +120,8 @@ knowledge_base:
       - files: "docs/internals/byok-and-secrets.md"
         applyTo: "apps/web/src/**/*.ts,apps/web/src/**/*.tsx,apps/web/src/**/*.test.ts,apps/web/src/**/*.test.tsx"
       - files: "docs/internals/hotkeys.md"
-        applyTo: "apps/web/src/**/*hotkey*,apps/web/src/**/*Hotkey*,apps/web/src/**/*shortcut*,apps/web/src/**/*Shortcut*"
+        # Keyboard handling can appear in any component or route, so this is not
+        # limited to files with "hotkey" or "shortcut" in the name.
+        applyTo: "apps/web/src/**/*.ts,apps/web/src/**/*.tsx"
       - files: "docs/internals/testing.md"
         applyTo: "apps/web/src/**/*.test.ts,apps/web/src/**/*.test.tsx"
