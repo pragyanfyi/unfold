@@ -47,7 +47,7 @@ If the repository moves to an organisation, transfer or recreate the app under t
 
 ## Operating it
 
-- **First release:** nothing is released until there is a `feat` or `fix` commit. release-please finds the last release from git tags, not from the manifest, so with no tag yet it proposes `1.0.0` regardless of the manifest's `0.0.0`. `initial-version: 0.1.0` in `release-please-config.json` sets the first version. Remove it only if you want a different first version. (Found on 2026-11-08, when the first `feat` proposed `1.0.0`; source: release-please `initialReleaseVersion()`.)
+- **First release:** nothing is released until there is a `feat` or `fix` commit. With no release tag, release-please uses a nonzero manifest version as the previous version, but it treats the literal `0.0.0` as unset and falls back to `1.0.0` unless `initial-version` is set. Our manifest is `0.0.0`, so `initial-version: 0.1.0` in `release-please-config.json` sets the first version. (Found on 2026-11-08, when the first `feat` proposed `1.0.0`; source: release-please v17.6.0 `src/manifest.ts` and `initialReleaseVersion()`, read 2026-11-08.)
 - **Force a version:** add a `Release-As: 0.1.0` footer to a commit on `main`.
 - **Re-run:** push any commit, or re-run the workflow from the Actions tab.
 - **Release PR checks not running?** Confirm the App is installed on the repo and the variable and secret exist.
