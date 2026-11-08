@@ -35,7 +35,7 @@ The `unfold` Worker is created by the first `wrangler deploy`. If the account ha
 
 ## Rolling back
 
-Re-run **Deploy production** from an older release tag (Actions → Deploy production → Run workflow → choose the tag), or use `pnpm exec wrangler rollback` from `apps/web` while logged in with `wrangler login`.
+Re-run **Deploy production** from an older release tag (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag, not a branch). The first step rejects branches and unpublished tags, or use `pnpm exec wrangler rollback` from `apps/web` while logged in with `wrangler login`.
 
 ## Known limits
 
