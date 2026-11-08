@@ -9,8 +9,8 @@ Unfold: a chat app where an AI interviews the user about an idea and a decision 
 ## Stack and status
 
 - **Decided:** TanStack Start/Query/Hotkeys/AI, React Flow, shadcn/ui (toasts via Sonner), Better Auth, Cloudflare D1 + Drizzle + KV, pnpm workspace (no Turborepo), Biome, Vitest, Playwright.
-- **Set up:** shadcn/ui, Tailwind v4 and the Sonner `<Toaster />` (ADR 0004).
-- **Not built yet:** auth, database, AI chat, canvas, hotkeys, deploy. The app is a placeholder page.
+- **Set up:** shadcn/ui, Tailwind v4 and the Sonner `<Toaster />` (ADR 0004); production deploy to Cloudflare Workers on release (ADR 0005, `docs/operations/deployment.md`).
+- **Not built yet:** auth, database, AI chat, canvas, hotkeys. The app is a placeholder page.
 - **Roadmap:** GitHub milestone `v0.1.0` (`gh issue list`). Releases: release-please, see `docs/operations/releasing.md`.
 
 ## Layout

@@ -45,6 +45,11 @@ Optional hardening: change the CI token to Editor on the single `unfold` Worker 
 
 Re-run **Deploy production** from an older release tag (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag, not a branch). The first step rejects branches and unpublished tags, or use `pnpm exec wrangler rollback` from `apps/web` while logged in with `wrangler login`.
 
+## Verified
+
+- **2026-11-08, first production deploy:** merging release PR #14 published release `v0.1.0`, which started **Deploy production** on its own (so the `release: published` trigger fires for a release created by the release GitHub App). The run passed the release-tag guard, built, and deployed with the Editor-level CI token, replacing the placeholder. `https://unfold.pragyan-fyi.workers.dev` then served the real app, and Cloudflare's deployment list shows version tagged `v0.1.0` with the release commit in its message.
+
 ## Known limits
 
-- **Not verified until the first release.** The workflow was checked with actionlint, and `wrangler deploy --dry-run` succeeds locally; the workflow itself has not run against Cloudflare, and the app has not been deployed. Update this section after the first production deploy.
+- **Not yet verified:** the manual re-deploy / rollback path (running **Deploy production** from an older tag, and the guard rejecting a branch). Try it when there is a second release.
+- The CI token is still account-wide Workers Scripts Edit. Narrowing it to Editor on the single `unfold` Worker is optional and not done.
