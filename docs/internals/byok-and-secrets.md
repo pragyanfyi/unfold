@@ -1,0 +1,36 @@
+# BYOK and secrets
+
+Applies to everything that touches API keys, tokens or other credentials. Background and reasoning: [ADR 0003](../adr/0003-bring-your-own-key-handling.md) and [SECURITY.md](../../.github/SECURITY.md).
+
+## Intended design (planned, not built yet)
+
+AI chat does not exist yet, so none of this is implemented or verified. It is the design the code must follow when it is built.
+
+Unfold has no AI gateway. Users bring their own provider key. Following the TanStack AI BYOK mechanism, the key will be kept in the browser (passkey-encrypted when supported, tab memory otherwise). On each AI request it will be sent in a request header to Unfold's own server route, which calls the provider and does not store the key. So the key transits our server but is never persisted by us.
+
+If you change anything that alters this, update ADR 0003 and `SECURITY.md` in the same PR.
+
+## Rules
+
+1. Provider keys are never written to D1, KV, logs, analytics, error reports or any file.
+2. Never log request headers wholesale. Log named, safe fields only.
+3. If a key could appear in a string (an error message, a URL, a stack trace), mask it before it reaches a log or an error report.
+4. The server-side environment-key fallback in the BYOK helper stays disabled in the hosted deployment.
+5. Keys never go in URLs, query strings, cookies, `localStorage`, query keys, or persisted TanStack Query cache.
+6. A key may be sent only to Unfold's own server route (the documented hop) and from there to the provider the user selected. Never send it to any other host.
+7. Treat XSS as a key-theft risk: no `dangerouslySetInnerHTML` without sanitising, and keep the Content-Security-Policy strict.
+8. Tests and fixtures use obviously fake keys. Never paste a real key into code, tests, issues, PRs or screenshots.
+9. Use the library's key helpers rather than custom key storage or crypto.
+10. Handle a failed key save explicitly. Per the TanStack AI docs, the memory-only fallback applies only when WebAuthn is unavailable. If WebAuthn is available but the authenticator lacks PRF support, the first save throws (a rejected promise from `byok.update()`), and the docs describe no way to detect this in advance. Catch the error, show a clear message, and never silently store the key anywhere else. Any decision to offer a memory-only option on this failure needs an ADR 0003 update first.
+
+## Repo secrets
+
+- Secrets for CI and deployment live in GitHub Actions secrets or variables, never in the repo.
+- `.env`, `.dev.vars` and similar are git-ignored; commit only `*.example` files with fake values.
+- Pin third-party GitHub Actions to a commit SHA; give each job the minimum `permissions`.
+
+## Before merging a change that touches keys
+
+- Read ADR 0003.
+- Check the TanStack AI BYOK docs for behaviour changes.
+- Confirm no new log line can contain a key.

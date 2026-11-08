@@ -6,11 +6,17 @@ Guidance for AI coding agents (and humans) working in this repo. Keep it short; 
 
 Unfold: a chat app where an AI interviews the user about an idea and a decision tree grows on a React Flow canvas. Bring-your-own-key, no AI gateway. Public MIT repo. See `README.md`.
 
+## Stack and status
+
+- **Decided:** TanStack Start/Query/Hotkeys/AI, React Flow, shadcn/ui (toasts via Sonner), Better Auth, Cloudflare D1 + Drizzle + KV, pnpm workspace (no Turborepo), Biome, Vitest, Playwright.
+- **Not built yet:** auth, database, AI chat, canvas, hotkeys, deploy. The app is a placeholder page.
+- **Roadmap:** GitHub milestone `v0.1.0` (`gh issue list`). Releases: release-please, see `docs/operations/releasing.md`.
+
 ## Layout
 
 - `apps/web`: TanStack Start app deployed to Cloudflare Workers
 - `packages/*`: shared code, created only when a second consumer exists
-- `docs/adr`: architecture decisions. `docs/operations`: runbooks.
+- `docs/adr`: decisions. `docs/internals`: coding rules by area. `docs/operations`: runbooks.
 
 ## Commands (from repo root)
 
@@ -34,6 +40,13 @@ Run `pnpm check`, `pnpm build`, `pnpm typecheck` and `pnpm test` before declarin
 - **Formatting:** Biome owns lint and format. Do not add ESLint or Prettier.
 - Do not hand-edit `apps/web/src/routeTree.gen.ts`.
 - Prefer small, focused changes. Do not add dependencies without a reason in the PR.
+- Read the matching file in `docs/internals/` before changing UI, data fetching, hotkeys, secrets or tests.
+
+## Working agreements
+
+- Ask the maintainer before anything outward-facing or hard to undo: pushing, opening or merging PRs, creating GitHub or Cloudflare resources, changing repo settings.
+- Report honestly: say what was verified and what was not. Wait for CI and CodeRabbit before asking to merge.
+- Gotchas: build before typecheck; tests use `vitest.config.ts` (not the Vite config); Biome uses `"preset": "recommended"`.
 
 ## Docs hygiene
 

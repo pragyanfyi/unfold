@@ -30,7 +30,7 @@ In scope: the Unfold web application and code in this repository. Out of scope: 
 
 Unfold has no AI gateway. You supply your own provider API key. Unfold uses the [TanStack AI BYOK](https://tanstack.com/ai/latest/docs/advanced/byok) mechanism. Based on that documentation, the intended design is:
 
-- **Storage:** the key is kept in your browser only. When your browser supports passkeys, it is stored encrypted with a passkey. Otherwise it is held in memory for the current tab and is gone when you close it.
+- **Storage:** the key is kept in your browser only. When your browser supports passkeys, it is stored encrypted with a passkey. When passkeys are unavailable, it is held in memory for the current tab and is gone when you close it. If passkeys are available but your authenticator does not support the required PRF extension, saving the key can fail; Unfold must tell you so rather than silently storing it somewhere else.
 - **Never persisted by us:** Unfold's database (Cloudflare D1), cache (KV) and logs do not store provider keys.
 - **Request path:** the key is **not** sent only to the AI provider. For each AI request your browser sends the key in a request header to Unfold's own server route, which makes the call to the provider and then discards the key. **The key therefore passes through Unfold's server in transit on every request**, even though it is never stored.
 - **Logging:** raw keys must never be logged. Error strings are masked before logging.

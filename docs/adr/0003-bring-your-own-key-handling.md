@@ -9,7 +9,8 @@ Unfold has no AI gateway. Users supply their own provider API keys. We must be p
 
 The TanStack AI BYOK documentation (https://tanstack.com/ai/latest/docs/advanced/byok, read 2026-11-07) describes this model:
 
-- Keys are kept in the browser, passkey-encrypted when supported and in tab memory otherwise.
+- Keys are kept in the browser. `defaultByokStorage()` uses passkey-encrypted storage when WebAuthn is available in a secure context, and tab memory otherwise (with a warning).
+- If WebAuthn is available but the authenticator has no PRF support, the first save throws. It does not fall back to memory. The docs name no capability check or error class for this case (https://tanstack.com/ai/latest/docs/api/ai-client, read 2026-11-08).
 - The browser sends the key in an `x-byok-*` request header to the app's own server route, which calls the provider and does not store the key.
 - The only explicit warning in the docs is not to log raw keys.
 - The docs do not discuss XSS, CSP or CORS.
@@ -31,4 +32,5 @@ Adopt the TanStack AI BYOK mechanism as documented.
 - Simple and consistent with the library, no custom crypto.
 - Users must trust that the hosted server does not log headers. Self-hosting remains possible.
 - Passkey prompts need a direct user gesture on some browsers, which affects the key entry UI.
+- The key entry UI must handle a failed save explicitly (the no-PRF case above): catch the error, explain it, and never silently store the key elsewhere. Whether to offer an opt-in memory-only mode for that case is an open question to settle by amending this ADR before building it; a custom storage implementation could provide it, but the docs do not present that as the recommended route.
 - To be verified during implementation: actual data flow, CSP effectiveness, and the behaviour of each supported provider.
