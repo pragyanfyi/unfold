@@ -2,7 +2,7 @@
 
 Applies to all keyboard handling in `apps/web`.
 
-Unfold uses TanStack Hotkeys for every shortcut, and `Cmd+/` opens a list of all of them. The list must always be complete and accurate, so shortcuts are declared in one place.
+No shortcuts exist yet. Unfold will use TanStack Hotkeys for every shortcut, and `Cmd+/` will open a list of all of them. The list must always be complete and accurate, so shortcuts will be declared in one place.
 
 ## Rules
 

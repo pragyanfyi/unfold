@@ -2,9 +2,11 @@
 
 Applies to everything that touches API keys, tokens or other credentials. Background and reasoning: [ADR 0003](../adr/0003-bring-your-own-key-handling.md) and [SECURITY.md](../../.github/SECURITY.md).
 
-## What is true by design
+## Intended design (planned, not built yet)
 
-Unfold has no AI gateway. Users bring their own provider key. Following the TanStack AI BYOK mechanism, the key is kept in the browser (passkey-encrypted when supported, tab memory otherwise). On each AI request it is sent in a request header to Unfold's own server route, which calls the provider and does not store the key. So the key transits our server but is never persisted by us.
+AI chat does not exist yet, so none of this is implemented or verified. It is the design the code must follow when it is built.
+
+Unfold has no AI gateway. Users bring their own provider key. Following the TanStack AI BYOK mechanism, the key will be kept in the browser (passkey-encrypted when supported, tab memory otherwise). On each AI request it will be sent in a request header to Unfold's own server route, which calls the provider and does not store the key. So the key transits our server but is never persisted by us.
 
 If you change anything that alters this, update ADR 0003 and `SECURITY.md` in the same PR.
 
@@ -15,7 +17,7 @@ If you change anything that alters this, update ADR 0003 and `SECURITY.md` in th
 3. If a key could appear in a string (an error message, a URL, a stack trace), mask it before it reaches a log or an error report.
 4. The server-side environment-key fallback in the BYOK helper stays disabled in the hosted deployment.
 5. Keys never go in URLs, query strings, cookies, `localStorage`, query keys, or persisted TanStack Query cache.
-6. Do not send keys to any host other than the provider the user selected.
+6. A key may be sent only to Unfold's own server route (the documented hop) and from there to the provider the user selected. Never send it to any other host.
 7. Treat XSS as a key-theft risk: no `dangerouslySetInnerHTML` without sanitising, and keep the Content-Security-Policy strict.
 8. Tests and fixtures use obviously fake keys. Never paste a real key into code, tests, issues, PRs or screenshots.
 9. Use the library's key helpers rather than custom key storage or crypto.
