@@ -124,7 +124,7 @@ The tree has one `parentId` per node, and a branch is a node with more than one 
 
 ### Validation
 
-The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, a `revisits` that is not an `open` question, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
+The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, a `revisits` that is not an `open` question or that another unanswered question already revisits (so two questions in one round cannot revisit the same one, and an open question never takes two decisions), an empty round, fewer than two or more than four options, or a missing tool call. Rejecting a tool call returns an error tool result and the model gets one retry. A missing tool call has no call id to attach a result to, so the app instead sends an app-generated correction message, marked as not written by the user, and retries once. `deriveTree` ignores correction messages. After the retry fails the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
 
 ### Context sent each turn
 
