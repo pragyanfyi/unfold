@@ -127,9 +127,11 @@ Open for #36:
 - One small dependency (`idb`), our own schema, no coupling to the TanStack persistence format.
 - The chat integration is ours to write (#26). Chat tests do not need IndexedDB because storage sits behind a small interface. The real implementation is tested with an IndexedDB test double or in a browser, chosen when it is built. Quota errors, eviction and cross-tab behaviour cannot be reliably reproduced in unit tests.
 - Conversations can be lost to eviction, to the user clearing site data, or by the Safari rule above. `persist()` reduces but does not remove this.
+- Settled in #26 (checked 2026-11-09 against `@tanstack/ai-client` 1.1.0 source; not run in a browser):
+  - Ids: `ChatClient` has no option to supply an id generator, so assistant message ids are the library's. A message we pass to `append()` as a `UIMessage` keeps its `id` (`normalizeToUIMessage` uses `message.id || generate()`), so user messages can carry our UUIDv7. `sendMessage(string)` takes no id. The ADR's fallback ("otherwise the library's own ids") therefore applies to assistant messages.
+  - Start-up: `initialMessages` is read once when the client is constructed (synchronously). Messages loaded asynchronously from IndexedDB must be set after construction (the chat hook reports `hydrating` for async storage); the wiring is part of #25/#27. `persistence` is off unless set, so the library writes nothing itself; we save through our own functions, using `onFinish(message)` for the completed assistant message.
+  - **Not verified:** whether a message changes after `onFinish`. With tools that have no handler and answers sent as user messages, we expect no later change, but we did not check the client message list across a second turn.
 - Not yet verified:
-  - (#26) whether the chat library lets us supply message ids and whether it changes a message after it has been saved;
-  - (#26) how stored messages are passed to the chat client at start-up;
   - IndexedDB behaviour in private browsing in the browsers we support;
   - how IndexedDB reports `QuotaExceededError` in practice (MDN says writes fail with it, not how);
   - the current `idb` version and release date;

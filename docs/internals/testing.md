@@ -41,7 +41,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 
 ## Required tests
 
-- **Key-leak checks (planned):** run the chat route with a sentinel fake key, capture all log and error output, and assert the sentinel never appears; and add a lint rule so logging paths cannot receive request headers that may hold key material (ADR 0003, item 6). Both are needed: a test alone passes if a header is logged but masked. Never log request headers on the chat route.
+- **Key-leak checks:** `features/chat/chat-handler.test.ts` runs the chat route with a sentinel fake key, captures `console` and stdout/stderr, and asserts the sentinel never appears in logs, the response body or headers, including when a provider error quotes the key. It also asserts the capture is not empty, so a broken spy cannot pass silently. The lint rule lives in `biome-plugins/`. Both are needed: a test alone passes if a header is logged but masked. Never log request headers on the chat route. When you add a log path, add it to the sentinel test.
 - **Post-deploy smoke test (planned):** after `deploy-production`, `curl` checks that `/` returns 200 and the `version` field of `/version.json` (`{"version": "<sha>"}`) equals the released commit SHA. Failure fails the deploy run; rollback stays manual.
 
 ## Coverage

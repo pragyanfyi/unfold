@@ -154,8 +154,10 @@ The skill tells the agent to dispatch sub-agents to look up facts in the environ
 - Tests script turns with `fakeText()` using `text` plus `toolCalls`, and E2E scripts the same shape in aimock fixtures. `deriveTree` and the report builder are pure functions with plain unit tests.
 - Positional ids mean the message list must stay append-only. Reordering or deleting messages would change ids.
 - The model must follow the tool protocol. A weak model may break it, so we show the failure rather than guess.
+- Settled in #26 (checked 2026-11-09 against `@tanstack/ai` 1.3.0, `@tanstack/ai-client` 1.1.0, `@tanstack/ai-react` 1.0.2, using `fakeText()` and the installed source, not a real provider; tests in `apps/web/src/features/chat/chat-handler.test.ts`):
+  - A tool declared **without** `execute` ends the run after the model's tool call: one model call, then `RUN_FINISHED`. A server tool **with** a handler makes the agent loop call the model a second time. So `ask_round` and `propose_finish` have no handler (`features/chat/tools.ts`). No extra round trip.
+  - Answers as a user message work. Sent history ends `assistant (tool call)`, `user`; the library inserts a synthetic tool result between them with `content` and `error` both `"No result provided"`, so the model sees an error-flagged tool result for every round. The alternative, answers as the tool result through `addToolResult`, avoids that. We keep the user message because this ADR decided it, but the synthetic error result is a cost to weigh when the chat is built (#27); it was not tested against a real model.
+  - Text streams first (`TEXT_MESSAGE_*`), then the tool call (`TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_END`). `fakeText()` emits the arguments as one `TOOL_CALL_ARGS` chunk, so how a real provider splits them, and whether the deltas are partial JSON, is **still unverified**.
+  - Tool-call reliability of the Anthropic adapter against the real API is **not verified**; nothing here called a model. Other providers are not supported yet.
 - Not yet verified:
-  - (#26) whether a client tool, or a server tool that only validates, avoids an extra model round trip after `ask_round`, since the agent loop calls the model again after a tool result;
-  - (#26) whether the user's answers should travel as the tool result or as an ordinary user message (this ADR assumes a user message);
-  - (#26) how tool-call arguments and the preceding text stream together in the installed version, and whether each provider adapter we support handles tool calls reliably;
   - (#27) whether shadcn AI Elements components work with TanStack AI's message parts, since AI Elements was built around the Vercel AI SDK's message format, and how reasoning parts appear there.
