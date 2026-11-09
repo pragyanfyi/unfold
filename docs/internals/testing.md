@@ -18,7 +18,7 @@ Applies to `**/*.test.{ts,tsx}` and E2E tests.
 
 ## TBD (decided in issue #7)
 
-- E2E runner setup (Playwright against the local Workers runtime with local D1 and KV)
+- E2E runner setup (Playwright against the local Workers runtime with local D1)
 - Fake AI provider design
 - Coverage expectations
 - Post-deploy smoke test
