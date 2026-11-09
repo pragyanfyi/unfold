@@ -29,7 +29,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 ## Fake AI provider (planned)
 
 - **Unit and integration:** `fakeText()` from `@tanstack/ai/testing`. Script answers with `setResponses([...])` (text, tool calls, thinking or an error; an entry may be a function of the request). End the test by asserting `fake.pendingResponses() === 0` so an unconsumed script fails, and check `fake.state.callCount` when the number of model calls matters. An empty queue produces a `RUN_ERROR`; treat it as a test bug.
-- **E2E:** aimock (`@copilotkit/aimock`), a local server that speaks real provider formats from fixtures. Each test sends an `X-Test-Id` header so parallel tests keep separate scripts. Fixtures live next to the E2E tests.
+- **E2E:** aimock (`@copilotkit/aimock`), a local server that speaks real provider formats from fixtures. Each test sends an `X-Test-Id` header, which isolates that test's sequence counter only; fixtures that match the same requests are still shared, so give each test distinct match criteria (or another way to isolate fixture matching). Fixtures live next to the E2E tests.
 - Neither is available until `@tanstack/ai` and the E2E tooling are installed. Check the open items in ADR 0011 first.
 
 ## E2E (planned)
@@ -41,8 +41,8 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 
 ## Required tests
 
-- **Key-leak test (planned):** run the chat route with a sentinel fake key, capture all log and error output, and assert the sentinel never appears (ADR 0003, item 6). Never log request headers on the chat route.
-- **Post-deploy smoke test (planned):** after `deploy-production`, `curl` checks that `/` returns 200 and `/version.json` equals the released commit SHA. Failure fails the deploy run; rollback stays manual.
+- **Key-leak checks (planned):** run the chat route with a sentinel fake key, capture all log and error output, and assert the sentinel never appears; and add a lint rule so logging paths cannot receive request headers that may hold key material (ADR 0003, item 6). Both are needed: a test alone passes if a header is logged but masked. Never log request headers on the chat route.
+- **Post-deploy smoke test (planned):** after `deploy-production`, `curl` checks that `/` returns 200 and the `version` field of `/version.json` (`{"version": "<sha>"}`) equals the released commit SHA. Failure fails the deploy run; rollback stays manual.
 
 ## Coverage
 

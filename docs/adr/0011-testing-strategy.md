@@ -5,12 +5,12 @@
 
 ## Context
 
-Unfold has a chat that streams from an AI provider, a canvas that renders a tree, and a server that must never leak provider keys (ADR 0003). We need tests that are deterministic, free to run, and need no real keys, and a plan small enough for a project this size. This ADR records the plan; the tooling is built in a follow-up issue.
+Unfold will have a chat that streams from an AI provider and a canvas that renders a tree (neither is built yet), and it has a server design that must never leak provider keys (ADR 0003). We need tests that are deterministic, free to run, and need no real keys, and a plan small enough for a project this size. This ADR records the plan; the tooling is built in a follow-up issue.
 
 What we checked (all read 2026-11-09):
 
 - TanStack AI ships a scripted fake model, `fakeText()`, at `@tanstack/ai/testing` (a subpath of `@tanstack/ai`). It answers from a queue (`setResponses`, `appendResponses`), supports text, tool calls, thinking and errors, accepts functions that see the request, and exposes `state.callCount` and `pendingResponses()`. An empty queue ends the call with a `RUN_ERROR`. It is a text adapter only. Source: TanStack AI, "Test with a Fake Model".
-- TanStack's own E2E suite drives a Start app with Playwright against **aimock** (`@copilotkit/aimock`, MIT), a local server that answers in real provider wire formats from fixtures, with a per-test `X-Test-Id` header for isolation and a record mode. It runs Chromium, retries twice in CI and traces on first retry. Source: `testing/e2e` in the TanStack/ai repository, and the aimock README.
+- TanStack's own E2E suite drives a Start app with Playwright against **aimock** (`@copilotkit/aimock`, MIT), a local server that answers in real provider wire formats from fixtures, with a per-test `X-Test-Id` header that isolates each test's sequence counter (matching fixtures stay shared) and a record mode. It runs Chromium, retries twice in CI and traces on first retry. Source: `testing/e2e` in the TanStack/ai repository, and the aimock README.
 
 ## Decision
 
@@ -24,8 +24,8 @@ What we checked (all read 2026-11-09):
 5. **Coverage.** Reported once tooling exists, with **no numeric threshold**. The rule is behaviour-based: new behaviour comes with tests, a bug fix with a regression test.
 6. **Flaky tests.** CI retries E2E once and records a trace on that retry. A test that passes only on retry is flaky and needs a linked issue. Quarantine is `test.fixme` plus that issue; never a silent retry and never deleting the test.
 7. **CI.** E2E runs on every pull request once at least one real journey exists, and becomes a required check only after it has proven stable (a separate decision). Unit and component tests stay in the existing required `Check`.
-8. **Key-leak test.** One test runs the chat route with a sentinel fake key, captures everything written to logs and error output, and asserts the sentinel never appears. This implements item 6 of ADR 0003.
-9. **Post-deploy smoke test.** After `deploy-production`, a `curl` step checks that `/` returns 200 and that `/version.json` equals the released commit SHA. A failure fails the deploy run; rollback stays manual (`docs/operations/deployment.md`). No browser, no sign-in, no AI.
+8. **Key-leak checks.** Two checks implement item 6 of ADR 0003. A test runs the chat route with a sentinel fake key, captures everything written to logs and error output, and asserts the sentinel never appears. A lint rule stops logging paths from receiving request headers that can hold key material, because a test alone passes even if a header reaches a log line and is masked there. Both land with the first chat route.
+9. **Post-deploy smoke test.** After `deploy-production`, a `curl` step checks that `/` returns 200 and that the `version` field of the JSON in `/version.json` (`{"version": "<sha>"}`) equals the released commit SHA. A failure fails the deploy run; rollback stays manual (`docs/operations/deployment.md`). No browser, no sign-in, no AI.
 10. **Auth in E2E.** Google sign-in cannot run in CI. How tests sign in (likely a seeded session) is decided in the Better Auth spike, then recorded in a new ADR.
 
 ## Consequences
@@ -33,4 +33,4 @@ What we checked (all read 2026-11-09):
 - Tests are free, offline and repeatable; CI needs no secrets.
 - One new dev dependency family (Playwright, aimock), added by the follow-up issue, not by this ADR.
 - The key-leak and smoke tests give ADR 0003 and the update toast (ADR 0007) an automated check.
-- Not yet verified, to be settled when the tooling is built: that the TanStack AI provider adapters accept a base URL override; that a local Worker can reach a mock on localhost; whether Chromium's emulated passkey authenticator supports the PRF extension that TanStack's passkey key storage needs (the fallback is the in-memory mode); whether `fakeText()` supports structured output (`outputSchema`); and that `@tanstack/ai/testing` exists in the released package version we install (we read the repository's main branch, which showed 1.2.0).
+- Not yet verified, to be settled when the tooling is built: that the TanStack AI provider adapters accept a base URL override; that a local Worker can reach a mock on localhost; whether Chromium's emulated passkey authenticator supports the PRF extension that TanStack's passkey key storage needs (without PRF, saving a key throws an explicit error, per ADR 0003; if emulation lacks PRF, E2E cannot exercise passkey storage, and any alternative such as a memory mode is decided by amending ADR 0003 first, never as a silent fallback); whether `fakeText()` supports structured output (`outputSchema`); and that `@tanstack/ai/testing` exists in the released package version we install (we read the repository's main branch, which showed 1.2.0).
