@@ -17,6 +17,8 @@ What we checked (read 2026-11-09):
 
 ## Decision
 
+Nothing below is built yet. It describes planned behaviour that the implementation will follow, and the sections use present tense for brevity.
+
 ### Where: IndexedDB through `idb`
 
 Conversations live in IndexedDB, wrapped by `idb`. localStorage is too small and blocks the main thread. We do not use TanStack's `indexedDBPersistence`: it keeps one blob per conversation, so it has no conversation list or metadata, and its save timing is undocumented. Because it keeps the whole message list under one key, we expect each save to write the whole record (our inference from the adapter interface, not stated in the docs). We feed stored messages to the chat client as initial messages and save through our own functions. How the two connect is decided in #26. We do not store the library's `resume` snapshot, so resuming a half-streamed reply after a reload is not supported.
@@ -59,7 +61,7 @@ Each save is one `readwrite` transaction over both stores that:
 
 A title change is a separate transaction with the same missing-record and `schemaVersion` checks. It compares `titleRev` with the value the caller expected, then increments it and updates `updatedAt`. Appends and title changes guard different fields, so they do not conflict with each other.
 
-Creating a conversation is one transaction that uses `add` (so it fails if the id exists) and writes the tab's savable messages at `seq = 0 …` together with the record, with `nextSeq` set to their count and `titleRev = 0`. The tab remembers whether the conversation has ever been saved. If the creation fails, the tab keeps the messages in memory and retries creation with the whole batch. A conversation that was saved earlier and is now missing was deleted elsewhere. That is a conflict, and we never recreate it. If creation fails because the id already exists, that is a conflict as well, and the tab reloads.
+Creating a conversation will be one transaction that uses `add` (so it fails if the id exists) and writes the tab's savable messages at `seq = 0 …` together with the record, with `nextSeq` set to their count and `titleRev = 0`. The tab will remember whether the conversation has ever been saved. If creation fails, the tab will keep the messages in memory and retry creation with the whole batch. A conversation that was saved earlier and is now missing was deleted elsewhere. That will be treated as a conflict, and we will never recreate it. If creation fails because the id already exists, that will be a conflict as well, and the tab will reload.
 
 We save twice per turn, and never per streamed token:
 
@@ -84,7 +86,7 @@ We save a completed turn whether or not its tool call is valid. Validation belon
 ### Quota, eviction and unavailable storage
 
 - On the first save we call `navigator.storage.persist()` and report the outcome without promising it. Browsers may decide silently, and even persistent data is removable by the user.
-- A failed save (for example `QuotaExceededError`) shows a visible, persistent warning that the conversation is not saved. The conversation keeps working in memory. Unsaved messages are retried in order as one batch after a storage failure. A batch, for creation or append, contains only savable messages: user messages and assistant messages whose stream has completed. A reply still streaming is never included, so storage recovering mid-stream cannot persist an unfinished reply. It is saved when its stream completes (not after a `nextSeq` or `titleRev` conflict, see Several tabs). Because a transaction is all or nothing, a retry cannot duplicate or skip messages. A reload loses whatever is still unsaved, and the warning says so.
+- A failed save (for example `QuotaExceededError`) shows a visible, persistent warning that the conversation is not saved. The conversation keeps working in memory. Unsaved messages will be retried in order as one batch after a storage failure, but not after a `nextSeq` or `titleRev` conflict (see Several tabs). A batch, for creation or append, will contain only savable messages: user messages and assistant messages whose stream has completed. A reply still streaming will never be included, so storage recovering mid-stream cannot persist an unfinished reply. It will be saved when its stream completes. Because a transaction is all or nothing, a retry cannot duplicate or skip messages. A reload loses whatever is still unsaved, and the warning says so.
 - If IndexedDB cannot be opened at all (including private browsing modes that block it, which is unverified), the app runs memory-only with the same warning. We never fall back to localStorage silently.
 - Even when IndexedDB opens and accepts writes, a private window may delete it when it closes (MDN says stored data is "usually" deleted). We cannot detect private mode reliably, so the app's storage notice says that conversations in private windows are usually lost when the private session ends, which can be later than closing one window.
 - We never delete conversations automatically to make room.
