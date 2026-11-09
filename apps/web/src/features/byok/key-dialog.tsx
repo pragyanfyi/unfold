@@ -58,8 +58,9 @@ export function KeyDialog({ byok = getByok() }: { byok?: ReturnType<typeof getBy
     setError(null);
     try {
       await byok.unlock();
-    } catch (caught) {
-      setError(describeSaveError(caught).message);
+    } catch {
+      // Fixed text: the saved key is still stored, just locked. Never show the raw error.
+      setError("Your saved key could not be unlocked. Check the passkey prompt and try again.");
     } finally {
       setBusy(false);
     }

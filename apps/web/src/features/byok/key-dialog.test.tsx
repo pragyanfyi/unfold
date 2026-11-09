@@ -65,6 +65,22 @@ describe("KeyDialog", () => {
     expect((screen.getByLabelText("API key") as HTMLInputElement).value).toBe(FAKE_KEY);
   });
 
+  it("says a cancelled unlock left the saved key stored, not that it was not saved", async () => {
+    const store = storage({
+      unlockable: true,
+      peek: () => ({ anthropic: "6789" }),
+      load: () => {
+        throw Object.assign(new Error("cancelled"), { name: "NotAllowedError" });
+      },
+    });
+    render(<KeyDialog byok={defineByok({ storage: store })} />);
+    fireEvent.click(await screen.findByRole("button", { name: /anthropic key:/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Unlock saved key" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/could not be unlocked/);
+    expect(alert.textContent).not.toMatch(/not saved/);
+  });
+
   it("does not enable Save for a blank key", async () => {
     render(<KeyDialog byok={defineByok({ storage: storage() })} />);
     await openAndType("   ");
