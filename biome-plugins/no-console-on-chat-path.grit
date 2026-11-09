@@ -1,0 +1,8 @@
+// ADR 0003, item 6. Code on the chat path must not write logs by hand: request headers
+// carry the provider key. Use `logSafe` from features/chat/safe-log.ts, which accepts only
+// named primitive fields and masks key-shaped text.
+language js
+
+`console.$method($args)` as $call where {
+  register_diagnostic(span=$call, message="Do not call console on the chat path. Use logSafe (features/chat/safe-log.ts); request headers can hold provider keys (ADR 0003).")
+}

@@ -1,0 +1,14 @@
+// ADR 0003, item 6. Never pass request headers (or the request itself) to a log call.
+language js
+
+or {
+  `logSafe($args)`,
+  `log($args)`
+} as $call where {
+  $args <: contains or {
+    `$r.headers`,
+    `$r.headers.$m($_)`,
+    `Object.fromEntries($_.headers)`
+  },
+  register_diagnostic(span=$call, message="Do not pass request headers to a log call: they can hold provider keys (ADR 0003).")
+}

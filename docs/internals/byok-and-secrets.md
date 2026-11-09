@@ -2,13 +2,19 @@
 
 Applies to everything that touches API keys, tokens or other credentials. Background and reasoning: [ADR 0003](../adr/0003-bring-your-own-key-handling.md) and [SECURITY.md](../../.github/SECURITY.md).
 
-## Intended design (planned, not built yet)
+## How it works
 
-AI chat does not exist yet, so none of this is implemented or verified. It is the design the code must follow when it is built.
-
-Unfold has no AI gateway. Users bring their own provider key. Following the TanStack AI BYOK mechanism, the key will be kept in the browser (passkey-encrypted when supported, tab memory otherwise). On each AI request it will be sent in a request header to Unfold's own server route, which calls the provider and does not store the key. So the key transits our server but is never persisted by us.
+Unfold has no AI gateway. Users bring their own provider key (Anthropic only for now). The key is kept in the browser by the TanStack AI keyring (`features/byok/key-store.ts`): passkey-encrypted when supported, tab memory otherwise. On each chat request the client sends it in the `x-byok-anthropic` header to Unfold's own route (`routes/api/chat.ts`, handler in `features/chat/chat-handler.ts`), which calls the provider and does not store the key. So the key transits our server but is never persisted by us. What was verified, and what was not, is in the implementation notes of [ADR 0003](../adr/0003-bring-your-own-key-handling.md).
 
 If you change anything that alters this, update ADR 0003 and `SECURITY.md` in the same PR.
+
+## On the chat path (`features/chat`, `features/byok`, `routes/api`)
+
+- Log only through `logSafe` (`features/chat/safe-log.ts`). It takes named primitive fields and masks key-shaped text. Biome plugins in `biome-plugins/` reject `console` calls and `.headers` passed to a log call here; do not disable them. They are lexical, so review is still needed.
+- Do not log, return or attach to an error anything from a provider error or a request header. Error responses are fixed strings.
+- The AI library logs caught errors itself. The chat route replaces that logger (`libraryLogger`); any new `chat()` call on the server must pass the same `debug` option.
+- Read the key with `getByokKey(request, "<slug>")` (header only). Never pass a `ByokProvider` descriptor that has `env` names to the server helpers: that turns on the environment fallback.
+- Changing the CSP (`features/security/csp.ts`) needs the key risk in mind: do not add `unsafe-inline` or `unsafe-eval` to `script-src`, or a host to `connect-src`.
 
 ## Rules
 
@@ -21,7 +27,7 @@ If you change anything that alters this, update ADR 0003 and `SECURITY.md` in th
 7. Treat XSS as a key-theft risk: no `dangerouslySetInnerHTML` without sanitising, and keep the Content-Security-Policy strict.
 8. Tests and fixtures use obviously fake keys. Never paste a real key into code, tests, issues, PRs or screenshots.
 9. Use the library's key helpers rather than custom key storage or crypto.
-10. Handle a failed key save explicitly. Per the TanStack AI docs, the memory-only fallback applies only when WebAuthn is unavailable. If WebAuthn is available but the authenticator lacks PRF support, the first save throws (a rejected promise from `byok.update()`), and the docs describe no way to detect this in advance. Catch the error, show a clear message, and never silently store the key anywhere else. Any decision to offer a memory-only option on this failure needs an ADR 0003 update first.
+10. Handle a failed key save explicitly (`describeSaveError`, `key-dialog.tsx`). Per the TanStack AI docs, the memory-only fallback applies only when WebAuthn is unavailable. If WebAuthn is available but the authenticator lacks PRF support, the first save throws (a rejected promise from `byok.update()`), and the docs describe no way to detect this in advance. Catch the error, show a clear message, and never silently store the key anywhere else. Any decision to offer a memory-only option on this failure needs an ADR 0003 update first.
 
 ## Repo secrets
 
