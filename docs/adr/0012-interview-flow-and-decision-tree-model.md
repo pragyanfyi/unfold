@@ -16,9 +16,9 @@ Both must come from the same data. Local storage (#25), the canvas ADR (#29) and
 
 What we checked (TanStack AI docs, read 2026-11-09):
 
-- **Structured output:** `chat({ outputSchema })` works with streaming and with tools. A malformed object ends the stream with `RUN_ERROR`. The docs do not say which providers support streaming together with `outputSchema`.
-- **Tool calls:** `toolDefinition({ name, description, inputSchema })` with `.server()` or `.client()` handlers. Arguments stream as `TOOL_CALL_ARGS` deltas. The docs describe the stream in two different ways and do not say whether deltas are partial JSON.
-- **Testing:** `fakeText()` documents scripted text, tool calls, thinking and errors. It does not mention `outputSchema`. Structured output stays untestable with it until verified (open item in ADR 0011).
+- **Structured output** ([overview](https://tanstack.com/ai/latest/docs/structured-outputs/overview)): `chat({ outputSchema })` is shown with streaming and with tools. A malformed object ends the stream with `RUN_ERROR`. The page does not say which providers support streaming together with `outputSchema`.
+- **Tool calls** ([tools](https://tanstack.com/ai/latest/docs/tools/tools), [stream events](https://tanstack.com/ai/latest/docs/chat/stream-events)): `toolDefinition({ name, description, inputSchema })` with `.server()` or `.client()` handlers. Arguments stream as `TOOL_CALL_ARGS` deltas. The docs describe the stream in two different ways and do not say whether deltas are partial JSON. We did not check tool-call support for each provider adapter.
+- **Testing** ([fake model](https://tanstack.com/ai/latest/docs/advanced/testing)): `fakeText()` documents scripted text, tool calls, thinking and errors. It does not mention `outputSchema`, so we treat structured-output support in `fakeText()` as unverified (open item in ADR 0011).
 
 ## Decision
 
@@ -42,7 +42,7 @@ The interview runs in **rounds**.
 
 A round never starts until every question in the previous round is answered. A question whose answer depends on another question in the same round belongs to a later round. These rules are in the system prompt, and the app enforces the ones it can check.
 
-We use tool calls rather than `outputSchema` because `fakeText()` can script them today, they work on every provider adapter, and the chat text still streams. The cost is that text and structure arrive separately, and the app pairs them per turn.
+We use tool calls rather than `outputSchema` because `fakeText()` documents scripting them, and the chat text still streams. Whether every provider we support handles tool calls well is not verified (see below). The cost is that text and structure arrive separately, and the app pairs them per turn.
 
 ### Questions
 
@@ -51,7 +51,7 @@ Each question in `ask_round` has:
 - a short `title` and a `body` (may be several paragraphs);
 - a canvas `label` of at most about 60 characters;
 - 2 to 4 `options`, each with a `label`;
-- `parentId`: the settled decision it hangs off (a solid edge on the canvas);
+- `parentId`: the settled decision it hangs off (a solid edge on the canvas). The `idea` node counts as settled from the start, with the user's idea as its decision, so the first round hangs off it;
 - `dependsOn`: optional ids of other settled decisions it also needs (dashed edges).
 
 Options are shown as A, B, C and so on. **Option A is always the model's recommendation**, so the first option in the list is the recommendation and we store no separate field. Questions are numbered within a round (Q1, Q2, and so on), for display only. Questions are worded so choosing the recommended option means "yes".
@@ -70,7 +70,9 @@ Each submitted answer set is one user message carrying structured answers, keyed
 
 ### Decisions
 
-A free-text answer is not a clean decision, so the model writes one. The next `ask_round` or `propose_finish` carries `settled`: a short `decision` (a sentence) for each question answered in the round just received. Until that call arrives, a node that has an answer but no decision shows the raw answer.
+A free-text answer is not a clean decision, so the model writes one. The next `ask_round` or `propose_finish` carries `settled`: for each question answered in the round just received, a short `decision` (a sentence) and a `status` of `settled` or `open`. Until that call arrives, a node that has an answer but no decision shows the raw answer.
+
+`open` is the model's judgement that the answer did not settle the question, for example "I don't know" or "not sure". This adds nothing to the questionnaire or the answer shape; the user just types. An `open` decision cannot be a `parentId` or appear in `dependsOn`, so nothing is built on it. The model may ask about it again in a later round, as a new question. If it is still open when the interview ends, the report lists it under open questions and the summary says so.
 
 ### Ids and the derived tree
 
@@ -97,7 +99,9 @@ type TreeNode = {
   answer: { optionId: string | null; text: string | null } | null; // the idea node holds the idea as text
   decision: string | null; // written by the model in the next call
   messageId: string; // chat message that asked it, for #31
-  state: "pending" | "answered" | "settled";
+  askedAt: string; // ISO 8601, from the asking message's timestamp
+  answeredAt: string | null; // from the answer message's timestamp
+  state: "pending" | "answered" | "settled" | "open"; // the idea node is "settled" from the start
 };
 ```
 
@@ -118,7 +122,7 @@ The tree has one `parentId` per node, and a branch is a node with more than one 
 
 ### Validation
 
-The app creates ids and rounds and validates every tool call. It rejects a call with an unknown or unanswered id in `parentId`, `dependsOn` or `settled`, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
+The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
 
 ### Context sent each turn
 
@@ -126,7 +130,7 @@ The server holds no state. The client sends the chat messages and a compact outl
 
 ### The report
 
-When the user confirms the end, the app builds a Markdown report from the derived tree with a fixed template, not by asking the model. It lists the idea, then each round with its questions, the recommendation (option A), the user's answer, the decision, and a marker where the user did not choose A. It ends with the model's summary. Building it in code is deterministic, free and testable. The user can download it as a `.md` file.
+When the user confirms the end, the app builds a Markdown report from the derived tree with a fixed template, not by asking the model. It lists the idea, then each round with its questions, the recommendation (option A), the user's answer, the decision, and a marker where the user did not choose A. It has a section for any open questions and ends with the model's summary. Building it in code is deterministic, free and testable. The user can download it as a `.md` file.
 
 ### What we leave out of the skill
 
@@ -141,5 +145,5 @@ The skill tells the agent to dispatch sub-agents to look up facts in the environ
 - Not yet verified:
   - (#26) whether a client tool, or a server tool that only validates, avoids an extra model round trip after `ask_round`, since the agent loop calls the model again after a tool result;
   - (#26) whether the user's answers should travel as the tool result or as an ordinary user message (this ADR assumes a user message);
-  - (#26) how tool-call arguments and the preceding text stream together in the installed version;
+  - (#26) how tool-call arguments and the preceding text stream together in the installed version, and whether each provider adapter we support handles tool calls reliably;
   - (#27) whether shadcn AI Elements components work with TanStack AI's message parts, since AI Elements was built around the Vercel AI SDK's message format, and how reasoning parts appear there.
