@@ -73,7 +73,7 @@ Each submitted answer set is one user message carrying structured answers, keyed
 
 A free-text answer is not a clean decision, so the model writes one. The next `ask_round` or `propose_finish` carries `settled`: for each question answered in the round just received, a short `decision` (a sentence) and a `status` of `settled` or `open`. Until that call arrives, a node that has an answer but no decision shows the raw answer.
 
-`open` is the model's judgement that the answer did not settle the question, for example "I don't know" or "not sure". This adds nothing to the questionnaire or the answer shape; the user just types. An `open` decision cannot be a `parentId` or appear in `dependsOn`, so nothing is built on it. The model may ask about it again in a later round, as a new question with `revisits` set to the open question's id. When the new question is settled, the original node becomes `settled` too and takes the new node's decision. Until then it stays `open`, and if the new answer is also `open` the original stays open. If a question is still open when the interview ends, the report lists it under open questions and the summary says so.
+`open` is the model's judgement that the answer did not settle the question, for example "I don't know" or "not sure". This adds nothing to the questionnaire or the answer shape; the user just types. An `open` decision cannot be a `parentId` or appear in `dependsOn`, so nothing is built on it. The model may ask about it again in a later round, as a new question with `revisits` set to the open question's id. Each question can be revisited at most once, so revisits form chains (`A` is revisited by `B`, `B` by `C`, and so on) and only the last question in a chain can be revisited again. A chain settles with the decision of its last question: when that question is settled, every earlier question in the chain becomes `settled` with the same decision. While the last question is still `open`, the whole chain stays open. If a question is still open when the interview ends, the report lists it under open questions and the summary says so.
 
 ### Ids and the derived tree
 
@@ -124,7 +124,17 @@ The tree has one `parentId` per node, and a branch is a node with more than one 
 
 ### Validation
 
-The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, a `revisits` that is not an `open` question or that another unanswered question already revisits (so two questions in one round cannot revisit the same one, and an open question never takes two decisions), an empty round, fewer than two or more than four options, or anything other than exactly one tool call in an assistant turn (none, or more than one). Rejecting a tool call returns an error tool result and the model gets one retry. When a turn has more than one tool call, none is applied and each gets an error tool result saying only one is allowed. A missing tool call has no call id to attach a result to, so the app instead sends an app-generated correction message, marked as not written by the user, and retries once. `deriveTree` ignores correction messages. If the retry fails, the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
+The app creates ids and rounds and validates every assistant turn. A turn is rejected if:
+
+- it does not contain exactly one tool call (none, or more than one);
+- `parentId` or `dependsOn` names an unknown id, or a question that is not settled (unanswered or `open`);
+- `settled` does not list every question of the round just answered exactly once (the first call lists none);
+- `revisits` names an unknown question, one that is not `open`, or one that already has a revisit;
+- a round has no questions, or a question has fewer than two or more than four options.
+
+Rejection works in two ways. A bad tool call gets an error tool result, and when a turn has more than one tool call, none is applied and each gets an error tool result saying only one is allowed. A missing tool call has no call id to attach a result to, so the app instead sends an app-generated correction message, marked as not written by the user. Either way the model gets one retry. If the retry fails, the turn fails with a visible error. `deriveTree` ignores rejected calls and correction messages. The tree is never silently repaired.
+
+The ADR fixes these rules as invariants. The full list of checks is implementation detail and is covered by `deriveTree` and validator unit tests.
 
 ### Context sent each turn
 
