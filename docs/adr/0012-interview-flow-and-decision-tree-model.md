@@ -138,7 +138,7 @@ The ADR fixes these rules as invariants. The full list of checks is implementati
 
 ### Context sent each turn
 
-The server holds no state. The client sends the chat messages and a compact outline of the tree (id, label, answer, decision, parent) so the model can name earlier ids. The outline is rebuilt each turn from local data and is not logged (ADR 0003).
+The server holds no state. The client sends the chat messages and a compact outline of the tree (id, label, answer, decision, parent, state, revisits) so the model can name earlier ids and see which questions are still `open` and which already have a revisit. The outline is rebuilt each turn from local data and is not logged (ADR 0003).
 
 ### The report
 
@@ -150,7 +150,7 @@ The skill tells the agent to dispatch sub-agents to look up facts in the environ
 
 ## Consequences
 
-- One data source drives both panes, and storage and sync save only messages.
+- One data source drives both panes, and storage and sync save the messages plus conversation metadata, and no separate tree.
 - Tests script turns with `fakeText()` using `text` plus `toolCalls`, and E2E scripts the same shape in aimock fixtures. `deriveTree` and the report builder are pure functions with plain unit tests.
 - Positional ids mean the message list must stay append-only. Reordering or deleting messages would change ids.
 - The model must follow the tool protocol. A weak model may break it, so we show the failure rather than guess.
