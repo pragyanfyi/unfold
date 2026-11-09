@@ -10,7 +10,7 @@ ADR 0012 makes the chat messages the only stored source of truth. The canvas tre
 What we checked (read 2026-11-09):
 
 - **Web Storage** ([MDN, storage quotas](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)): the page gives limits of "10 MiB" and "5 MiB per origin" without reconciling them. It is synchronous and per origin. Writes that exceed the limit throw `QuotaExceededError`.
-- **IndexedDB quota and eviction** (same page): per-origin limits are a share of disk (Chrome up to 60%, Firefox best-effort the smaller of 10% of disk or 10 GiB, Safari about 60%). Data is best-effort by default and an evicted origin loses all its data at once. `navigator.storage.persist()` asks for exemption; Chromium and Safari decide without a prompt, from the user's history with the site. Safari deletes script-written data after seven days without user interaction when cross-site tracking prevention is on; the page does not say whether this covers IndexedDB explicitly. Whether IndexedDB works in private browsing is not stated for IndexedDB specifically.
+- **IndexedDB quota and eviction** (same page): per-origin limits are a share of disk (Chrome up to 60%, Firefox best-effort the smaller of 10% of disk or 10 GiB, Safari about 60%). Data is best-effort by default and an evicted origin loses all its data at once. `navigator.storage.persist()` asks for exemption; Chromium and Safari decide without a prompt, from the user's history with the site. Safari deletes script-written data when the origin has had no user interaction in the last seven days of browser use, if cross-site tracking prevention is on; the page does not say whether this covers IndexedDB explicitly. For private browsing the page says only that browsers may apply different quotas and that stored data is usually deleted when private browsing ends; it does not name IndexedDB.
 - **TanStack AI client persistence** ([API](https://tanstack.com/ai/latest/docs/api/ai-client), [client persistence](https://tanstack.com/ai/latest/docs/persistence/client-persistence)): `indexedDBPersistence()` and custom adapters (`getItem`, `setItem`, `removeItem`) store one `{ messages, resume? }` record per `threadId`. The docs do not say whether a client adapter writes per chunk or per finished turn, who generates `UIMessage.id`, or whether `createdAt` (optional) is set automatically.
 - **`idb`** ([README](https://github.com/jakearchibald/idb)): ISC licence, about 1.19 kB brotli. A thin promise wrapper with versioned `upgrade` callbacks and `blocked` / `blocking` handlers. It has no cross-tab change notification. We could not read its npm page, so its current version is unchecked.
 - **Cross-tab** ([BroadcastChannel](https://developer.mozilla.org/en-US/docs/Web/API/BroadcastChannel), [Web Locks](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)): both are listed as widely available since March 2022. MDN says Web Locks is limited to secure contexts.
@@ -32,6 +32,7 @@ type ConversationRecord = {
   schemaVersion: number; // shape of this conversation's message records
   nextSeq: number; // count of stored messages
   createdAt: string; // ISO 8601 UTC
+  titleRev: number; // incremented on every title change
   updatedAt: string; // last append or title change, not migration
 };
 
@@ -56,7 +57,9 @@ Each save is one `readwrite` transaction over both stores that:
 2. fails if it is missing, if `nextSeq` differs from the value the caller expected, or if `schemaVersion` is newer than this code understands;
 3. writes the new messages at `seq = nextSeq …`, then updates `nextSeq` and `updatedAt`.
 
-Creating a conversation is one transaction that writes the record with `nextSeq = 0` and the first message together. A save never recreates a deleted conversation.
+A title change is a separate transaction with the same missing-record and `schemaVersion` checks. It compares `titleRev` with the value the caller expected, then increments it and updates `updatedAt`. Appends and title changes guard different fields, so they do not conflict with each other.
+
+Creating a conversation is one transaction that writes the first message at `seq = 0` and the record with `nextSeq = 1` and `titleRev = 0` together. A save never recreates a deleted conversation.
 
 We save twice per turn, and never per streamed token:
 
@@ -67,7 +70,7 @@ We save a completed turn whether or not its tool call is valid. Validation belon
 
 ### Ids and timestamps
 
-- Conversation ids are UUIDv7. The browser's `crypto.randomUUID()` produces version 4 UUIDs (from the Web Crypto spec; not rechecked here), so generating v7 needs a small function or library, chosen when this is built.
+- Conversation ids are UUIDv7. The browser's `crypto.randomUUID()` produces version 4 UUIDs ([Web Crypto, section 10.1.2, Editor's Draft of 22 October 2026](https://w3c.github.io/webcrypto/#Crypto-method-randomUUID), read 2026-11-09), so generating v7 needs a small function or library, chosen when this is built.
 - Timestamps are ISO 8601 strings in UTC, written by us (`createdAt`, `updatedAt`). We do not rely on the library's optional `createdAt`.
 - `seq` is local order. It is not an identity across devices (see Sync).
 
@@ -81,13 +84,14 @@ We save a completed turn whether or not its tool call is valid. Validation belon
 ### Quota, eviction and unavailable storage
 
 - On the first save we call `navigator.storage.persist()` and report the outcome without promising it. Browsers may decide silently, and even persistent data is removable by the user.
-- A failed save (for example `QuotaExceededError`) shows a visible, persistent warning that the conversation is not saved. The conversation keeps working in memory. Unsaved messages are retried in order as one batch after a storage failure (not after a `nextSeq` conflict, see Several tabs). Because a transaction is all or nothing, a retry cannot duplicate or skip messages. A reload loses whatever is still unsaved, and the warning says so.
+- A failed save (for example `QuotaExceededError`) shows a visible, persistent warning that the conversation is not saved. The conversation keeps working in memory. Unsaved messages are retried in order as one batch after a storage failure (not after a `nextSeq` or `titleRev` conflict, see Several tabs). Because a transaction is all or nothing, a retry cannot duplicate or skip messages. A reload loses whatever is still unsaved, and the warning says so.
 - If IndexedDB cannot be opened at all (including private browsing modes that block it, which is unverified), the app runs memory-only with the same warning. We never fall back to localStorage silently.
+- Even when IndexedDB opens and accepts writes, a private window may delete it when it closes (MDN says stored data is "usually" deleted). We cannot detect private mode reliably, so the app's storage notice says that conversations in private windows are usually lost when the window closes.
 - We never delete conversations automatically to make room.
 
 ### Several tabs
 
-The `nextSeq` check in every save is the guard. If another tab saved first, our save fails, the tab keeps its unsaved messages visible as unsaved, and tells the user the conversation changed elsewhere and must be reloaded. v1 does not merge. If another tab deleted the conversation, the save fails the same way and does not recreate it.
+The `nextSeq` check on appends and the `titleRev` check on title changes are the guards. If another tab saved first, our save fails, the tab keeps its unsaved messages visible as unsaved, and tells the user the conversation changed elsewhere and must be reloaded. v1 does not merge. If another tab deleted the conversation, the save fails the same way and does not recreate it.
 
 After each committed save or delete, the tab posts `{ conversationId }` on a BroadcastChannel so other tabs refresh early. This is a hint only. A tab that misses it still gets the right answer from the check. We do not use Web Locks in v1, so two tabs can run a model call on the same conversation at once, and the second one to save loses. This is warned about, not prevented.
 
@@ -114,7 +118,7 @@ Open for #36:
 - conflict handling. Two devices that append offline create divergent lists. Merging them would change positional ids (ADR 0012), so interleaving is not allowed, and the policy (for example, forking) is #36's decision;
 - deletion semantics. A local delete would otherwise reappear on the next pull, so #36 must define tombstones before sync ships;
 - ownership. The local store is per browser, not per account. Nothing here marks a conversation as belonging to a user, so a second person on a shared browser sees the first person's conversations. #36 decides how local conversations attach to an account, and may add a field by migration;
-- title is mutable metadata and needs its own rule.
+- title is mutable metadata. Locally `titleRev` stops silent overwrites between tabs; merging titles across devices needs its own rule.
 
 ## Consequences
 
