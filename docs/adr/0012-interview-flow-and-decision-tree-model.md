@@ -1,0 +1,145 @@
+# 12. Interview flow and decision-tree model
+
+- Status: Proposed
+- Date: 2026-11-09
+
+## Context
+
+Unfold interviews the user the way the `grilling` skill does. The model maps the idea as a design tree, where every decision branches into the decisions that depend on it. The frontier is every decision whose prerequisites are settled. The model asks the whole frontier in one round, with a recommended answer for each question, then waits for the answers. It repeats until the frontier is empty and the user confirms a shared understanding.
+
+The app has two panes that are always visible side by side:
+
+- a **chat** that reads like a chatbot: the user's message, the model's reasoning, its reply, then a questionnaire form to answer;
+- a **canvas** (React Flow) that shows the decision tree.
+
+Both must come from the same data. Local storage (#25), the canvas ADR (#29) and sync (#36) all read it, so it is expensive to change later.
+
+What we checked (TanStack AI docs, read 2026-11-09):
+
+- **Structured output:** `chat({ outputSchema })` works with streaming and with tools. A malformed object ends the stream with `RUN_ERROR`. The docs do not say which providers support streaming together with `outputSchema`.
+- **Tool calls:** `toolDefinition({ name, description, inputSchema })` with `.server()` or `.client()` handlers. Arguments stream as `TOOL_CALL_ARGS` deltas. The docs describe the stream in two different ways and do not say whether deltas are partial JSON.
+- **Testing:** `fakeText()` documents scripted text, tool calls, thinking and errors. It does not mention `outputSchema`. Structured output stays untestable with it until verified (open item in ADR 0011).
+
+## Decision
+
+### The messages are the source of truth; the tree is derived
+
+We store the chat messages. The canvas tree is computed from them by a pure function, `deriveTree(messages)`. There is no second record of the tree to keep in sync, so the chat and the canvas cannot disagree. Local storage and sync save the message list plus a little conversation metadata (`id`, `title`, timestamps).
+
+This also keeps a later feature cheap. Branching a new conversation from a node is the message list cut at that round. That feature is not designed here.
+
+### The interview loop
+
+The interview runs in **rounds**.
+
+1. The user's first message is the idea.
+2. Each assistant turn is streamed chat text plus one tool call.
+   - `ask_round({ settled, questions })` asks the whole current frontier.
+   - `propose_finish({ settled, summary })` says the frontier is empty and gives a closing summary.
+3. The questionnaire for a round is how the user answers. They answer every question in the round, then submit.
+4. The submitted answers become a user message, and the next round starts.
+5. After `propose_finish` the user confirms or keeps going. Confirming ends the interview and produces the report.
+
+A round never starts until every question in the previous round is answered. A question whose answer depends on another question in the same round belongs to a later round. These rules are in the system prompt, and the app enforces the ones it can check.
+
+We use tool calls rather than `outputSchema` because `fakeText()` can script them today, they work on every provider adapter, and the chat text still streams. The cost is that text and structure arrive separately, and the app pairs them per turn.
+
+### Questions
+
+Each question in `ask_round` has:
+
+- a short `title` and a `body` (may be several paragraphs);
+- a canvas `label` of at most about 60 characters;
+- 2 to 4 `options`, each with a `label`;
+- `parentId`: the settled decision it hangs off (a solid edge on the canvas);
+- `dependsOn`: optional ids of other settled decisions it also needs (dashed edges).
+
+Options are shown as A, B, C and so on. **Option A is always the model's recommendation**, so the first option in the list is the recommendation and we store no separate field. Questions are numbered within a round (Q1, Q2, and so on), for display only. Questions are worded so choosing the recommended option means "yes".
+
+### Answers
+
+The questionnaire is a radio group plus a text box for each question. An answer is `{ optionId, text }`. Both are optional, but at least one must be present. So the user can:
+
+- choose an option;
+- write only their own text;
+- choose an option and add a note, such as "A is the right direction, but I want that part of C too".
+
+Nothing is preselected. "I don't know" is just text: it is stored like any other answer and the model sees it. There is no special case.
+
+Each submitted answer set is one user message carrying structured answers, keyed by question id. How the questionnaire looks and behaves is decided when it is built.
+
+### Decisions
+
+A free-text answer is not a clean decision, so the model writes one. The next `ask_round` or `propose_finish` carries `settled`: a short `decision` (a sentence) for each question answered in the round just received. Until that call arrives, a node that has an answer but no decision shows the raw answer.
+
+### Ids and the derived tree
+
+Ids come from position, so they are the same every time the tree is derived:
+
+- the root is `idea`;
+- question `n` of round `r` is `r{r}q{n}`, for example `r2q1`.
+
+The round number counts valid `ask_round` calls. The model sees these ids in the outline described below and uses them in `parentId`, `dependsOn` and `settled`.
+
+`deriveTree(messages)` produces, for each node:
+
+```ts
+type TreeNode = {
+  id: string; // "idea", or "r{round}q{n}"
+  kind: "idea" | "question";
+  round: number; // 0 for the idea node
+  parentId: string | null; // null only for the idea node; solid edge
+  dependsOn: string[]; // dashed edges
+  label: string; // short canvas title
+  title: string | null; // null for the idea node
+  body: string | null; // null for the idea node
+  options: { id: string; label: string }[]; // options[0] is the recommendation
+  answer: { optionId: string | null; text: string | null } | null; // the idea node holds the idea as text
+  decision: string | null; // written by the model in the next call
+  messageId: string; // chat message that asked it, for #31
+  state: "pending" | "answered" | "settled";
+};
+```
+
+There is exactly one `idea` node, created from the first message. The tree's status is `interviewing`, `proposed` (after `propose_finish`) or `finished` (after the user confirms), and the summary comes from `propose_finish`. All of these are derived too.
+
+### What shows where
+
+- **Chat:** everything, in order, including the model's reasoning, shown collapsed. Reasoning is optional because providers differ, and it is stored with the message by the library. It never enters the tree.
+- **Canvas:** structure only. A node shows its label and decision, never prose. A new round adds its questions as pending nodes. Submitting answers marks them answered, and the next round's `settled` fills in the decisions.
+- **Linking:** clicking a node scrolls the chat to its round (#31).
+- **Small screens:** the two panes become tabs.
+
+Layout and visual design of the canvas belong to the canvas ADR (#29).
+
+### Branching
+
+The tree has one `parentId` per node, and a branch is a node with more than one child. A question that needs several decisions sets `parentId` to the one it follows most directly and lists the rest in `dependsOn`. The tree is append-only in this milestone. Users cannot edit it by hand.
+
+### Validation
+
+The app creates ids and rounds and validates every tool call. It rejects a call with an unknown or unanswered id in `parentId`, `dependsOn` or `settled`, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
+
+### Context sent each turn
+
+The server holds no state. The client sends the chat messages and a compact outline of the tree (id, label, answer, decision, parent) so the model can name earlier ids. The outline is rebuilt each turn from local data and is not logged (ADR 0003).
+
+### The report
+
+When the user confirms the end, the app builds a Markdown report from the derived tree with a fixed template, not by asking the model. It lists the idea, then each round with its questions, the recommendation (option A), the user's answer, the decision, and a marker where the user did not choose A. It ends with the model's summary. Building it in code is deterministic, free and testable. The user can download it as a `.md` file.
+
+### What we leave out of the skill
+
+The skill tells the agent to dispatch sub-agents to look up facts in the environment. Unfold has no files or tools to search, so the model states an assumption in the question or asks the user.
+
+## Consequences
+
+- One data source drives both panes, and storage and sync save only messages.
+- Tests script turns with `fakeText()` using `text` plus `toolCalls`, and E2E scripts the same shape in aimock fixtures. `deriveTree` and the report builder are pure functions with plain unit tests.
+- Positional ids mean the message list must stay append-only. Reordering or deleting messages would change ids.
+- The model must follow the tool protocol. A weak model may break it, so we show the failure rather than guess.
+- Not yet verified:
+  - (#26) whether a client tool, or a server tool that only validates, avoids an extra model round trip after `ask_round`, since the agent loop calls the model again after a tool result;
+  - (#26) whether the user's answers should travel as the tool result or as an ordinary user message (this ADR assumes a user message);
+  - (#26) how tool-call arguments and the preceding text stream together in the installed version;
+  - (#27) whether shadcn AI Elements components work with TanStack AI's message parts, since AI Elements was built around the Vercel AI SDK's message format, and how reasoning parts appear there.
