@@ -16,7 +16,7 @@ Both must come from the same data. Local storage (#25), the canvas ADR (#29) and
 
 What we checked (TanStack AI docs, read 2026-11-09):
 
-- **Structured output** ([overview](https://tanstack.com/ai/latest/docs/structured-outputs/overview)): `chat({ outputSchema })` is shown with streaming and with tools. A malformed object ends the stream with `RUN_ERROR`. The page does not say which providers support streaming together with `outputSchema`.
+- **Structured output** ([overview](https://tanstack.com/ai/latest/docs/structured-outputs/overview)): `chat({ outputSchema })` is shown with streaming and with tools. The engine validates the final object when the schema is a Standard Schema (Zod, ArkType or Valibot) and a failure ends the stream with `RUN_ERROR`; it does not validate plain JSON Schema. The page does not say which providers support streaming together with `outputSchema`.
 - **Tool calls** ([tools](https://tanstack.com/ai/latest/docs/tools/tools), [stream events](https://tanstack.com/ai/latest/docs/chat/stream-events)): `toolDefinition({ name, description, inputSchema })` with `.server()` or `.client()` handlers. Arguments stream as `TOOL_CALL_ARGS` deltas. The docs describe the stream in two different ways and do not say whether deltas are partial JSON. We did not check tool-call support for each provider adapter.
 - **Testing** ([fake model](https://tanstack.com/ai/latest/docs/advanced/testing)): `fakeText()` documents scripted text, tool calls, thinking and errors. It does not mention `outputSchema`, so we treat structured-output support in `fakeText()` as unverified (open item in ADR 0011).
 
@@ -52,7 +52,8 @@ Each question in `ask_round` has:
 - a canvas `label` of at most about 60 characters;
 - 2 to 4 `options`, each with a `label`;
 - `parentId`: the settled decision it hangs off (a solid edge on the canvas). The `idea` node counts as settled from the start, with the user's idea as its decision, so the first round hangs off it;
-- `dependsOn`: optional ids of other settled decisions it also needs (dashed edges).
+- `dependsOn`: optional ids of other settled decisions it also needs (dashed edges);
+- `revisits`: optional id of an `open` question that this question asks again (see Decisions).
 
 Options are shown as A, B, C and so on. **Option A is always the model's recommendation**, so the first option in the list is the recommendation and we store no separate field. Questions are numbered within a round (Q1, Q2, and so on), for display only. Questions are worded so choosing the recommended option means "yes".
 
@@ -72,7 +73,7 @@ Each submitted answer set is one user message carrying structured answers, keyed
 
 A free-text answer is not a clean decision, so the model writes one. The next `ask_round` or `propose_finish` carries `settled`: for each question answered in the round just received, a short `decision` (a sentence) and a `status` of `settled` or `open`. Until that call arrives, a node that has an answer but no decision shows the raw answer.
 
-`open` is the model's judgement that the answer did not settle the question, for example "I don't know" or "not sure". This adds nothing to the questionnaire or the answer shape; the user just types. An `open` decision cannot be a `parentId` or appear in `dependsOn`, so nothing is built on it. The model may ask about it again in a later round, as a new question. If it is still open when the interview ends, the report lists it under open questions and the summary says so.
+`open` is the model's judgement that the answer did not settle the question, for example "I don't know" or "not sure". This adds nothing to the questionnaire or the answer shape; the user just types. An `open` decision cannot be a `parentId` or appear in `dependsOn`, so nothing is built on it. The model may ask about it again in a later round, as a new question with `revisits` set to the open question's id. When the new question is settled, the original node becomes `settled` too and takes the new node's decision. Until then it stays `open`, and if the new answer is also `open` the original stays open. If a question is still open when the interview ends, the report lists it under open questions and the summary says so.
 
 ### Ids and the derived tree
 
@@ -92,6 +93,7 @@ type TreeNode = {
   round: number; // 0 for the idea node
   parentId: string | null; // null only for the idea node; solid edge
   dependsOn: string[]; // dashed edges
+  revisits: string | null; // the open question this one asks again
   label: string; // short canvas title
   title: string | null; // null for the idea node
   body: string | null; // null for the idea node
@@ -122,7 +124,7 @@ The tree has one `parentId` per node, and a branch is a node with more than one 
 
 ### Validation
 
-The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
+The app creates ids and rounds and validates every tool call. It rejects a call with an unknown id, or one that is not settled (unanswered or `open`), in `parentId` or `dependsOn`, an unknown id in `settled`, a `revisits` that is not an `open` question, an empty round, fewer than two or more than four options, or a missing tool call. Rejection returns an error tool result and the model gets one retry. After that the turn fails with a visible error. `deriveTree` ignores calls that were rejected. The tree is never silently repaired.
 
 ### Context sent each turn
 
