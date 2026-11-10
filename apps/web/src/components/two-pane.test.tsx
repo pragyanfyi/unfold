@@ -13,9 +13,15 @@ function Counter() {
   );
 }
 
-// An inactive pane stays in the DOM; its tab content is hidden with CSS from data-state.
-function pane(text: string) {
-  return screen.getByText(text).closest("[data-slot=tabs-content]")?.getAttribute("data-state");
+// The tab contract: the selected tab is aria-selected and controls the panel that holds the
+// content. An inactive panel stays in the DOM (hidden with CSS), so it is found by its text.
+function expectSelected(tabName: "Chat" | "Canvas", text: string) {
+  const tab = screen.getByRole("tab", { name: tabName });
+  const panel = screen.getByText(text).closest("[role=tabpanel]");
+  expect(tab.getAttribute("aria-selected")).toBe("true");
+  expect(panel?.id).toBe(tab.getAttribute("aria-controls"));
+  const other = screen.getByRole("tab", { name: tabName === "Chat" ? "Canvas" : "Chat" });
+  expect(other.getAttribute("aria-selected")).toBe("false");
 }
 
 afterEach(cleanup);
@@ -23,11 +29,9 @@ afterEach(cleanup);
 describe("TwoPane", () => {
   it("shows the chat first and switches to the canvas with the tabs", () => {
     render(<TwoPane chat={<p>chat pane</p>} canvas={<p>canvas pane</p>} />);
-    expect(pane("chat pane")).toBe("active");
-    expect(pane("canvas pane")).toBe("inactive");
+    expectSelected("Chat", "chat pane");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Canvas" }));
-    expect(pane("canvas pane")).toBe("active");
-    expect(pane("chat pane")).toBe("inactive");
+    expectSelected("Canvas", "canvas pane");
   });
 
   it("keeps the hidden pane mounted, so its state survives a tab switch", () => {
