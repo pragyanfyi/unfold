@@ -51,6 +51,47 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run test
 
+  # End-to-end tests in Chromium against the production build in the local Workers runtime,
+  # with the AI provider replaced by aimock (ADR 0011). Runs on every PR but is NOT part of
+  # `check` yet: it becomes required only after it has proven stable.
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Install Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+      # Not `pnpm test:e2e`: that script builds again, and the build above is enough.
+      - name: Run E2E tests
+        working-directory: apps/web
+        run: pnpm exec playwright test
+      # Coverage of the unit and component tests: reported, no threshold (ADR 0011).
+      - name: Coverage report
+        if: ${{ !cancelled() }}
+        run: pnpm run test:coverage
+      - name: Upload reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-and-coverage
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            apps/web/coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Single required status check for branch protection. Passes only when every
   # job above succeeded, so jobs can be added or renamed without touching rulesets.
   check:
