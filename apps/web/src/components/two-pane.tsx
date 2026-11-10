@@ -8,7 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 export function TwoPane({ chat, canvas }: { chat: ReactNode; canvas: ReactNode }) {
   const [tab, setTab] = useState("chat");
   return (
-    <Tabs value={tab} onValueChange={setTab} className="h-dvh min-h-0 gap-0 md:flex-row">
+    <Tabs
+      value={tab}
+      onValueChange={setTab}
+      className="h-dvh min-h-0 gap-0 md:data-horizontal:flex-row"
+    >
       <TabsList className="m-2 self-center md:hidden">
         <TabsTrigger value="chat">Chat</TabsTrigger>
         <TabsTrigger value="canvas">Canvas</TabsTrigger>
@@ -16,7 +20,7 @@ export function TwoPane({ chat, canvas }: { chat: ReactNode; canvas: ReactNode }
       <TabsContent
         value="chat"
         forceMount
-        className="min-h-0 data-[state=inactive]:hidden md:flex md:w-[min(32rem,45%)] md:shrink-0 md:flex-col md:border-r md:data-[state=inactive]:flex"
+        className="min-h-0 data-[state=inactive]:hidden md:flex md:w-[min(32rem,45%)] md:flex-none md:flex-col md:border-r md:data-[state=inactive]:flex"
       >
         {chat}
       </TabsContent>
