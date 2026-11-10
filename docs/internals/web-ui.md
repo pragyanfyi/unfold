@@ -6,6 +6,7 @@ Applies to `apps/web/src/**/*.{tsx,css}`.
 
 - Use [shadcn/ui](https://ui.shadcn.com) for UI primitives (buttons, dialogs, inputs, toasts). Do not hand-roll a primitive that shadcn provides.
 - Add shadcn components with the CLI (`pnpm dlx shadcn@latest add <name>`), run from `apps/web`. Add only what a change needs.
+- The CLI writes `@/` imports and may reformat files it overwrites. Rewrite `@/` to `#/` (Vitest has no `@/` alias) and run `pnpm format`; revert overwrites that only change formatting.
 - Generated components live in `src/components/ui`. Edit them only when a change truly needs it, and say so in the PR. Product-specific components live outside `ui/`.
 - Toasts use Sonner through the shadcn component. Do not add a second toast library.
 - One component per file, named exports, props typed explicitly.

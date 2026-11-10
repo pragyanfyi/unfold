@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { KeyDialog } from "#/features/byok/key-dialog";
+import { useState } from "react";
+import { TwoPane } from "#/components/two-pane";
+import { CanvasPlaceholder } from "#/features/canvas/canvas-placeholder";
+import { ChatPane } from "#/features/chat/chat-pane";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-  return (
-    <main className="mx-auto my-16 w-[min(42rem,calc(100%-2rem))]">
-      <h1 className="mb-4 text-3xl font-semibold">Unfold</h1>
-      <p className="text-muted-foreground mb-6">Think an idea all the way through. Coming soon.</p>
-      <KeyDialog />
-    </main>
-  );
+  // A fresh conversation per page load until storage (#28) restores and lists them.
+  const [threadId] = useState(() => crypto.randomUUID());
+  return <TwoPane chat={<ChatPane threadId={threadId} />} canvas={<CanvasPlaceholder />} />;
 }
