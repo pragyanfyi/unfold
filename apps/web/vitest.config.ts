@@ -12,5 +12,12 @@ export default defineConfig({
     // `// @vitest-environment jsdom` at the top of the file.
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+    // Reported, never enforced: no threshold (ADR 0011). Run with `pnpm test:coverage`.
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/routeTree.gen.ts", "src/components/ui/**"],
+      reporter: ["text-summary", "html"],
+    },
   },
 });
