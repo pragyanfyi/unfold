@@ -37,7 +37,7 @@ The interview runs in **rounds**.
    - `ask_round({ settled, questions })` asks the whole current frontier.
    - `propose_finish({ settled, summary })` says the frontier is empty and gives a closing summary.
 3. The questionnaire for a round is how the user answers. They answer every question in the round, then submit.
-4. The submitted answers become a user message, and the next round starts.
+4. The submitted answers become the result of the `ask_round` call (see Answers), and the next round starts.
 5. After `propose_finish` the user confirms or keeps going. Confirming ends the interview and produces the report.
 
 A round never starts until every question in the previous round is answered. A question whose answer depends on another question in the same round belongs to a later round. These rules are in the system prompt, and the app enforces the ones it can check.
@@ -67,7 +67,9 @@ The questionnaire is a radio group plus a text box for each question. An answer 
 
 Nothing is preselected. "I don't know" is just text: it is stored like any other answer and the model sees it. There is no special case.
 
-Each submitted answer set is one user message carrying structured answers, keyed by question id. How the questionnaire looks and behaves is decided when it is built.
+Each submitted answer set is the **tool result** of the `ask_round` call it answers, not a user message (decided in #27, see the verified notes below). Its shape is `{ answers: { "1": { optionId, text }, ... } }`, keyed by the question's 1-based number within the round, because positional ids (`r2q1`) come from `deriveTree`, which the chat UI does not run. `optionId` is the option's letter (`"A"`, `"B"`, ...). The same holds for `propose_finish`: the user's reply is its result, `{ confirmed, text }`.
+
+The questionnaire is a stepper, one question at a time. Each step has the radio group, a note box, Back and Next, and the last step submits. Option and note can be combined, so the shadcn `Questionnaire` primitive (where choice and text are mutually exclusive) is not used.
 
 ### Decisions
 
@@ -156,8 +158,17 @@ The skill tells the agent to dispatch sub-agents to look up facts in the environ
 - The model must follow the tool protocol. A weak model may break it, so we show the failure rather than guess.
 - Settled in #26 (checked 2026-11-09 against `@tanstack/ai` 1.3.0, `@tanstack/ai-client` 1.1.0, `@tanstack/ai-react` 1.0.2, using `fakeText()` and the installed source, not a real provider; tests in `apps/web/src/features/chat/chat-handler.test.ts`):
   - A tool declared **without** `execute` ends the run after the model's tool call: one model call, then `RUN_FINISHED`. A server tool **with** a handler makes the agent loop call the model a second time. So `ask_round` and `propose_finish` have no handler (`features/chat/tools.ts`). No extra round trip.
-  - Answers as a user message work. Sent history ends `assistant (tool call)`, `user`; the library inserts a synthetic tool result between them with `content` and `error` both `"No result provided"`, so the model sees an error-flagged tool result for every round. The alternative, answers as the tool result through `addToolResult`, avoids that. We keep the user message because this ADR decided it, but the synthetic error result is a cost to weigh when the chat is built (#27); it was not tested against a real model.
+  - (Superseded by #27, below.) Answers as a user message were thought to work. Sent history ends `assistant (tool call)`, `user`; the library inserts a synthetic tool result between them with `content` and `error` both `"No result provided"`, so the model sees an error-flagged tool result for every round. The alternative, answers as the tool result through `addToolResult`, avoids that. We keep the user message because this ADR decided it, but the synthetic error result is a cost to weigh when the chat is built (#27); it was not tested against a real model.
   - Text streams first (`TEXT_MESSAGE_*`), then the tool call (`TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_END`). `fakeText()` emits the arguments as one `TOOL_CALL_ARGS` chunk, so how a real provider splits them, and whether the deltas are partial JSON, is **still unverified**.
   - Tool-call reliability of the Anthropic adapter against the real API is **not verified**; nothing here called a model. Other providers are not supported yet.
+- Settled in #27 (checked 2026-11-10 against the same versions, with the real chat client and the real route driven by `fakeText()`; tests in `features/chat/answers-as-tool-result.test.ts` and `chat-pane.test.tsx`; no real provider, no browser):
+  - **Answers as a user message do not work with the client.** A handler-less server tool ends the run as a client-tool interrupt. While it is pending, `sendMessage` throws "cannot send normal input while pending interrupts exist". `addToolResult` records a result locally but does not continue the run, because the interrupt is not resolvable. #26 only checked the server route's history, which is why it missed this.
+  - **What works:** the client declares the same tool (`askRound.client(execute)`) with an `execute` that waits for the user. Resolving it resumes the run with a real tool result, and the model sees no synthetic "No result provided" error. The route must pass `runId`, `parentRunId` and `resume` from the request to `chat()`; without them the interrupt is never bound to the run and cannot be resolved (fixed in #27).
+  - A pending round is held in a promise in the browser. A reload loses it, and storage does not keep the library's resume state (ADR 0013), so **an unanswered round cannot be answered after a reload**. #28 must decide this (for example, re-ask the last round).
+  - An unanswered `ask_round` ends in tool-call state `input-complete`. Tool arguments are available as parsed `input` only once complete, so the questionnaire cannot render progressively.
+  - Reasoning arrives as a `thinking` part with no streaming flag; the UI treats it as running while it is the last part of the streaming message.
+  - After a failed run, the library leaves `status` at `error` for a first turn and at `ready` with `error` set for a resumed one. A resumed failure leaves an empty assistant message behind. `reload()` truncates to the last user message, so it must not be used to retry after an answered round; `retryInterrupts()` re-sends the failed resume request. **A resume the user stopped cannot be retried:** `retryInterrupts()` does nothing, and `resumeInterruptsUnsafe()` has no saved resume state to use. So the UI offers Stop only before the first answer, and a conversation that stalls after an answer (for example a reply with no tool call) can only be started over. Fixing this needs a library API or our own stored resume state (#28).
+  - shadcn AI Elements (registry read 2026-11-10) imports types from the Vercel `ai` package in `conversation`, `message`, `prompt-input` and `tool`, and its part shapes differ from TanStack's (`text` vs `content`, `reasoning` vs `thinking`, `tool-<name>` vs `tool-call` plus `tool-result`). We did not use it. The chat is built from the shadcn registry set that `shadcn-ui/chatbot-template` uses (`message`, `bubble`, `trace`, `message-scroller`, `empty`, `input-group`, `alert`) plus `@tanstack/ai-react`'s `TextPart` for markdown.
 - Not yet verified:
-  - (#27) whether shadcn AI Elements components work with TanStack AI's message parts, since AI Elements was built around the Vercel AI SDK's message format, and how reasoning parts appear there.
+  - Anything against a real provider, or in a browser. The chat UI is tested in jsdom only.
+  - How a real provider splits `TOOL_CALL_ARGS` (unchanged from #26).

@@ -149,7 +149,7 @@ describe("reasoning and failed turns", () => {
   });
 
   it("reports a failed turn through error and status, and reload retries it", async () => {
-    const { client, fake } = await setup([{ error: { message: "boom" } }, { text: "Recovered." }]);
+    const { client, fake } = await setup([{ error: "boom" }, { text: "Recovered." }]);
     await client.sendMessage("An idea");
     expect(client.getStatus()).toBe("error");
     expect(client.getError()).toBeInstanceOf(Error);

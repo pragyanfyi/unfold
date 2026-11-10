@@ -16,14 +16,26 @@ import { DEFAULT_PROVIDER, PROVIDERS } from "#/features/chat/providers";
 import { getByok } from "./key-store";
 import { describeSaveError } from "./save-error";
 
-export function KeyDialog({ byok = getByok() }: { byok?: ReturnType<typeof getByok> }) {
+// `open` and `onOpenChange` are optional: the chat opens the dialog when a send is blocked for
+// lack of a key. Without them the dialog manages itself.
+export function KeyDialog({
+  byok = getByok(),
+  open: controlledOpen,
+  onOpenChange: onControlledOpenChange,
+}: {
+  byok?: ReturnType<typeof getByok>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const provider = DEFAULT_PROVIDER;
   const label = PROVIDERS[provider].label;
   const snapshot = useByok(byok);
   const current = snapshot.status[provider];
   // A failed save also leaves a status ("error"); that key is NOT stored, so it does not count.
   const status = current?.state === "set" || current?.state === "locked" ? current : undefined;
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = controlledOpen ?? ownOpen;
+  const setOpen = onControlledOpenChange ?? setOwnOpen;
   // The key lives in this state only while the dialog is open, and is cleared afterwards.
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
