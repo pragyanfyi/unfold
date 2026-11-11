@@ -192,6 +192,22 @@ describe("deriveTree", () => {
       });
     });
 
+    it("stays proposed when the call failed instead of getting a reply", () => {
+      const failed = call(
+        "propose_finish",
+        { settled: settle("r1q1"), summary: "All agreed." },
+        {
+          error: "Stopped",
+        },
+        "error",
+      );
+      expect(deriveTree([idea(), first(), failed])).toMatchObject({
+        status: "proposed",
+        summary: "All agreed.",
+        rejected: [],
+      });
+    });
+
     it("goes back to interviewing when the user keeps going", () => {
       const more = finish(settle("r1q1"), { confirmed: false, text: "What about cost?" });
       const next = round([], [{ label: "Cost", parentId: "r1q1" }]);
@@ -285,6 +301,8 @@ describe("deriveTree", () => {
       expect(reasons([idea(), next(settle("r1q1"))])).toEqual([
         "settled must list exactly: nothing",
       ]);
+      // One id that only reads like the two expected ones.
+      expect(reasons([idea(), answered(), next(settle("r1q1, r1q2"))])).toEqual([expected]);
     });
 
     it("rejects a revisit of a question that is unknown, not open or already asked again", () => {

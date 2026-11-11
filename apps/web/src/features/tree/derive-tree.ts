@@ -88,13 +88,13 @@ function applySettled(
   settled: Settled,
   awaiting: ReadonlyArray<string>,
 ): string | null {
-  const ids = settled.map((entry) => entry.id);
-  const expected = [...awaiting].sort().join(", ") || "nothing";
+  const ids = new Set(settled.map((entry) => entry.id));
   if (
-    new Set(ids).size !== ids.length ||
-    [...ids].sort().join(", ") !== [...awaiting].sort().join(", ")
+    settled.length !== awaiting.length ||
+    ids.size !== settled.length ||
+    !awaiting.every((id) => ids.has(id))
   ) {
-    return `settled must list exactly: ${expected}`;
+    return `settled must list exactly: ${[...awaiting].sort().join(", ") || "nothing"}`;
   }
   const byId = new Map(nodes.map((node) => [node.id, node]));
   for (const entry of settled) {
@@ -184,6 +184,8 @@ export function deriveTree(messages: ReadonlyArray<UIMessage>): Tree {
     }
     const call = calls[0];
     const input: unknown = call.input ?? parseArguments(call.arguments);
+    // A call that failed holds the error as its output. That is not a reply from the user.
+    const output: unknown = call.state === "error" ? undefined : call.output;
     // Decisions and questions are applied to a copy, so a rejected call changes nothing.
     const draft = nodes.map((node) => ({ ...node }));
 
@@ -205,9 +207,7 @@ export function deriveTree(messages: ReadonlyArray<UIMessage>): Tree {
       for (const [index, question] of parsed.data.questions.entries()) {
         const id = `r${round}q${index + 1}`;
         const answer =
-          call.output === undefined
-            ? null
-            : readAnswer(call.output, index + 1, question.options.length);
+          output === undefined ? null : readAnswer(output, index + 1, question.options.length);
         if (answer) awaiting.push(id);
         draft.push({
           id,
@@ -245,9 +245,9 @@ export function deriveTree(messages: ReadonlyArray<UIMessage>): Tree {
       }
       nodes = draft;
       awaiting = [];
-      const reply = call.output as { confirmed?: unknown } | null | undefined;
+      const reply = output as { confirmed?: unknown } | null | undefined;
       // "Keep going" returns to the interview, and the summary no longer stands.
-      const keptGoing = call.output !== undefined && reply?.confirmed !== true;
+      const keptGoing = output !== undefined && reply?.confirmed !== true;
       status = keptGoing ? "interviewing" : reply?.confirmed === true ? "finished" : "proposed";
       summary = keptGoing ? null : parsed.data.summary;
     } else {
