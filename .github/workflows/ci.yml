@@ -69,9 +69,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+      # No `--with-deps`: the runner image already has the libraries Chromium needs, and the
+      # flag only added fonts through apt, which fails the job when the package mirror is down.
       - name: Install Chromium
         working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
       # Not `pnpm test:e2e`: that script builds again, and the build above is enough.
       - name: Run E2E tests
         working-directory: apps/web
