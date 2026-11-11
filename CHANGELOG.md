@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/pragyanfyi/unfold/compare/v0.2.0...v0.3.0) (2026-11-11)
+
+
+### Features
+
+* **ai:** add BYOK key entry and chat route ([#41](https://github.com/pragyanfyi/unfold/issues/41)) ([cd7598e](https://github.com/pragyanfyi/unfold/commit/cd7598e9605d811f9d05b929ad96c08b22351266))
+* **chat:** interview chat UI ([#43](https://github.com/pragyanfyi/unfold/issues/43)) ([7099523](https://github.com/pragyanfyi/unfold/commit/7099523b0cbadac40bad9ccfa927075c731761b9))
+* **db:** save and restore conversations in the browser ([#45](https://github.com/pragyanfyi/unfold/issues/45)) ([bf9e8fc](https://github.com/pragyanfyi/unfold/commit/bf9e8fc4203476d67d62f63482e4c46db7661a51))
+
 ## [0.2.0](https://github.com/pragyanfyi/unfold/compare/v0.1.0...v0.2.0) (2026-11-08)
 
 
