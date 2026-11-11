@@ -1,6 +1,6 @@
 # 13. Local-first storage of conversations
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-09
 
 ## Context
@@ -17,7 +17,7 @@ What we checked (read 2026-11-09):
 
 ## Decision
 
-Nothing below is built yet. It describes planned behaviour that the implementation will follow, and the sections use present tense for brevity.
+Built in #28; see the implementation notes at the end for what differs from this text. The sections use present tense for brevity.
 
 ### Where: IndexedDB through `idb`
 
@@ -136,3 +136,42 @@ Open for #36:
   - how IndexedDB reports `QuotaExceededError` in practice (MDN says writes fail with it, not how);
   - the current `idb` version and release date;
   - that Safari's seven-day rule applies to IndexedDB.
+
+## Implementation notes (#28)
+
+Checked 2026-11-11 against `@tanstack/ai-client` 1.1.0 source and runs of `@tanstack/ai-react` 1.0.2 with a fake model, `idb` 8.0.4, `fake-indexeddb` 6.2.8, and Chromium through Playwright (ADR 0011). Settled with the maintainer on 2026-11-11.
+
+**Decided**
+
+- **A round that is waiting for an answer is not stored.** Reloading then shows the idea and the answered rounds, and the user presses Try again, which asks the round again (one repeated model call). The alternative, updating the last message in place when it is answered, would have broken the append-only rule above.
+- **Addresses.** `/` is a new idea and `/c/$id` is a saved one. Both are drawn by one pathless layout route, so the chat stays mounted when a new idea gets its address after the first save. A reply in flight is not cut.
+- **The list is a sidebar** (shadcn `sidebar`, inset variant, as in the sidebar-08 block). Rename and delete are in this PR. Title is the first 80 characters of the idea.
+
+**What is saved, and when (differs from the text above)**
+
+- The library calls `onFinish` only for the run that ends the conversation, not for runs that end waiting for the user (verified in a run). So saving does not hang off `onFinish`. `features/storage/savable.ts` computes, from the message list, the longest prefix that is final:
+  - user messages;
+  - assistant messages whose tool calls all have an answer (the answer is stored with the message, as ADR 0012 and the note above require);
+  - a plain closing reply, once `onFinish` names it and the turn is `ready`.
+- **The idea is saved when the server begins to answer** (status `streaming`), or when the request failed after being sent, not at the moment of the click. A send refused for lack of a key clears the idea again, and saving it at the click would store a message that no longer exists. The cost is that a reload in the first second or so loses the idea.
+- A failed or stopped reply is never stored: it is not named by `onFinish`, and an unanswered round is not final.
+- **Resuming after a reload.** A conversation that ends in an answered round or proposal has a stored answer and no stored reply. Calling `addToolResult` with the stored output resumes the run without adding a user message (checked with the fake model). It is offered as Try again and never runs on open, because it spends the user's key. The library's own `reload()` would truncate to the last user message, so it is used only when no round was answered.
+- **Start over** no longer clears a stored conversation. It opens a new idea and leaves the old one in the list.
+
+**Not built, on purpose**
+
+- Message migrations. There is one `schemaVersion`, so only the "newer than this code" check exists (reads, appends and renames refuse and write nothing). The first shape change adds the migration step.
+- Reacting to the cross-tab hint beyond refreshing the list. An open conversation learns it is out of date when its own save is refused, as the text above describes.
+
+**Verified**
+
+- The storage layer against `fake-indexeddb`: ordering, the `nextSeq` and `titleRev` guards, all-or-nothing batches, no recreation of a deleted conversation, refusal of newer or damaged data, and that stored records have only the documented fields.
+- The save policy and the saver, including queued retry as one batch and stopping for good after a conflict.
+- In Chromium: save, list, reload at each stage, resume, rename, delete, and the address of a deleted idea.
+- **A bug the new navigation exposed.** Leaving an idea while a round waited for an answer rejected the waiting tool call, and the library resumed the run with that error as the tool result: one request to the provider that nobody asked for. The chat hook now stops the run first. A test fails without it.
+
+**Not verified**
+
+- `QuotaExceededError` in a real browser (only the mapping and the saver's handling are tested), private browsing, and Safari's seven-day rule.
+- Two real tabs racing on one conversation. The conflict is tested against the store, not across tabs, and the BroadcastChannel hint was not observed arriving in a second tab.
+- What `navigator.storage.persist()` answers in each browser. The sidebar footer reports it honestly either way.

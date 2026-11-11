@@ -24,6 +24,8 @@ Applies to `**/*.test.{ts,tsx}` and E2E tests.
 | Component | Vitest + jsdom + Testing Library | UI behaviour                                     |
 | E2E       | Playwright, Chromium only        | A few critical journeys                          |
 
+Storage (`features/storage`) is tested in node against `fake-indexeddb`, behind the `ConversationStore` interface, so chat and UI tests do not need IndexedDB. Quota, eviction, private browsing and cross-tab races cannot be reproduced there.
+
 Most tests belong at the bottom. Add an E2E test only for a journey a lower layer cannot cover.
 
 ## Fake AI provider
@@ -35,7 +37,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 
 ## E2E
 
-- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider. No Cloudflare account or secrets. There is no database yet; when D1 is bound (ADR 0009), the same local runtime provides a local D1.
+- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider. No Cloudflare account or secrets. There is no server database yet; when D1 is bound (ADR 0009), the same local runtime provides a local D1. Saved conversations live in the browser's IndexedDB (ADR 0013); each test has its own browser context, so each starts empty.
 - Run `pnpm test:e2e` from the repo root (it builds first). Specs are in `apps/web/e2e`. Vitest does not run them, and Playwright does not run `src`.
 - The app is served at `http://localhost:4173`, not `127.0.0.1`: WebAuthn rejects an IP address as the origin.
 - **Passkeys:** saving a key uses a passkey whose PRF output encrypts it (ADR 0003). Chromium's virtual authenticator supports PRF (`hasPrf: true`, see `e2e/support.ts`), so tests can save a key through the real dialog. Add it before the first navigation.

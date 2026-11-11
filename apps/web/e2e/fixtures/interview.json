@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "E2E-IDEA-JOURNEY", "hasToolResult": false },
+      "match": {
+        "userMessage": "E2E-IDEA-JOURNEY",
+        "hasToolResult": false
+      },
       "response": {
         "content": "Let's start with the basics.",
         "toolCalls": [
@@ -14,14 +17,28 @@
                   "title": "Who is it for?",
                   "body": "Pick the people you build this for first.",
                   "label": "Audience",
-                  "options": [{ "label": "Families" }, { "label": "Friends" }],
+                  "options": [
+                    {
+                      "label": "Families"
+                    },
+                    {
+                      "label": "Friends"
+                    }
+                  ],
                   "parentId": "idea"
                 },
                 {
                   "title": "How do they find it?",
                   "body": "",
                   "label": "Discovery",
-                  "options": [{ "label": "Word of mouth" }, { "label": "Search" }],
+                  "options": [
+                    {
+                      "label": "Word of mouth"
+                    },
+                    {
+                      "label": "Search"
+                    }
+                  ],
                   "parentId": "idea"
                 }
               ]
@@ -31,7 +48,10 @@
       }
     },
     {
-      "match": { "userMessage": "E2E-IDEA-JOURNEY", "toolResultContains": "E2E-NOTE-ROUND-1" },
+      "match": {
+        "userMessage": "E2E-IDEA-JOURNEY",
+        "toolResultContains": "E2E-NOTE-ROUND-1"
+      },
       "response": {
         "content": "Thanks. One more round.",
         "toolCalls": [
@@ -39,15 +59,30 @@
             "name": "ask_round",
             "arguments": {
               "settled": [
-                { "id": "r1q1", "decision": "Families", "status": "settled" },
-                { "id": "r1q2", "decision": "Word of mouth", "status": "settled" }
+                {
+                  "id": "r1q1",
+                  "decision": "Families",
+                  "status": "settled"
+                },
+                {
+                  "id": "r1q2",
+                  "decision": "Word of mouth",
+                  "status": "settled"
+                }
               ],
               "questions": [
                 {
                   "title": "How will it make money?",
                   "body": "",
                   "label": "Revenue",
-                  "options": [{ "label": "Subscription" }, { "label": "One-off fee" }],
+                  "options": [
+                    {
+                      "label": "Subscription"
+                    },
+                    {
+                      "label": "One-off fee"
+                    }
+                  ],
                   "parentId": "r1q1"
                 }
               ]
@@ -57,7 +92,10 @@
       }
     },
     {
-      "match": { "userMessage": "E2E-IDEA-JOURNEY", "toolResultContains": "E2E-NOTE-ROUND-2" },
+      "match": {
+        "userMessage": "E2E-IDEA-JOURNEY",
+        "toolResultContains": "E2E-NOTE-ROUND-2"
+      },
       "response": {
         "content": "That covers it.",
         "toolCalls": [
@@ -65,9 +103,21 @@
             "name": "propose_finish",
             "arguments": {
               "settled": [
-                { "id": "r1q1", "decision": "Families", "status": "settled" },
-                { "id": "r1q2", "decision": "Word of mouth", "status": "settled" },
-                { "id": "r2q1", "decision": "Subscription", "status": "settled" }
+                {
+                  "id": "r1q1",
+                  "decision": "Families",
+                  "status": "settled"
+                },
+                {
+                  "id": "r1q2",
+                  "decision": "Word of mouth",
+                  "status": "settled"
+                },
+                {
+                  "id": "r2q1",
+                  "decision": "Subscription",
+                  "status": "settled"
+                }
               ],
               "summary": "A subscription product for families, found by word of mouth."
             }
@@ -76,11 +126,19 @@
       }
     },
     {
-      "match": { "userMessage": "E2E-IDEA-JOURNEY", "toolResultContains": "confirmed\":true" },
-      "response": { "content": "Glad we reached a shared understanding." }
+      "match": {
+        "userMessage": "E2E-IDEA-JOURNEY",
+        "toolResultContains": "confirmed\":true"
+      },
+      "response": {
+        "content": "Glad we reached a shared understanding."
+      }
     },
     {
-      "match": { "userMessage": "E2E-IDEA-LAYOUT", "hasToolResult": false },
+      "match": {
+        "userMessage": "E2E-IDEA-LAYOUT",
+        "hasToolResult": false
+      },
       "response": {
         "content": "A first round for the layout check.",
         "toolCalls": [
@@ -93,7 +151,14 @@
                   "title": "Which layout question comes first?",
                   "body": "",
                   "label": "Layout",
-                  "options": [{ "label": "This one" }, { "label": "That one" }],
+                  "options": [
+                    {
+                      "label": "This one"
+                    },
+                    {
+                      "label": "That one"
+                    }
+                  ],
                   "parentId": "idea"
                 }
               ]
@@ -103,9 +168,71 @@
       }
     },
     {
-      "match": { "userMessage": "E2E-IDEA-PROVIDER-ERROR" },
+      "match": {
+        "userMessage": "E2E-IDEA-STORAGE",
+        "hasToolResult": false
+      },
       "response": {
-        "error": { "message": "invalid x-api-key", "type": "authentication_error" },
+        "content": "A first round for the storage check.",
+        "toolCalls": [
+          {
+            "name": "ask_round",
+            "arguments": {
+              "settled": [],
+              "questions": [
+                {
+                  "title": "Which storage question comes first?",
+                  "body": "",
+                  "label": "Storage",
+                  "options": [
+                    {
+                      "label": "This one"
+                    },
+                    {
+                      "label": "That one"
+                    }
+                  ],
+                  "parentId": "idea"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "E2E-IDEA-STORAGE",
+        "toolResultContains": "E2E-NOTE-STORAGE"
+      },
+      "response": {
+        "content": "That covers storage.",
+        "toolCalls": [
+          {
+            "name": "propose_finish",
+            "arguments": {
+              "settled": [
+                {
+                  "id": "r1q1",
+                  "decision": "This one",
+                  "status": "settled"
+                }
+              ],
+              "summary": "Storage works across reloads."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "E2E-IDEA-PROVIDER-ERROR"
+      },
+      "response": {
+        "error": {
+          "message": "invalid x-api-key",
+          "type": "authentication_error"
+        },
         "status": 401
       }
     }

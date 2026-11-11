@@ -18,6 +18,7 @@ No shortcuts exist yet. Unfold will use TanStack Hotkeys for every shortcut, and
 ## Third-party shortcuts
 
 - Sonner binds `Alt+T` to focus the toast region. Keep it enabled (it is the only keyboard route to toasts) and list it in the `Cmd+/` list when that exists. Do not bind `Alt+T` to anything else.
+- The shadcn `sidebar` ships a `Cmd+B` handler and a cookie write. Both were removed from `components/ui/sidebar.tsx` (the registry rule above), and the sidebar opens with its trigger button. Re-add `Cmd+B` through the registry when it exists, and remove the handler again after any `shadcn add` that overwrites the file.
 - Before adding a UI library that registers its own key handlers, check for conflicts with the registry and list its shortcuts.
 
 ## Adding a shortcut
