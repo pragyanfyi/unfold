@@ -21,16 +21,18 @@ The app runs at http://localhost:3000.
 
 ## Everyday commands
 
-| Command          | What it does                                                      |
-| ---------------- | ----------------------------------------------------------------- |
-| `pnpm dev`       | Start the web app                                                 |
-| `pnpm check`     | Biome lint and format check                                       |
-| `pnpm format`    | Auto-format everything                                            |
-| `pnpm build`     | Production build (also generates `apps/web/src/routeTree.gen.ts`) |
-| `pnpm typecheck` | TypeScript check. Run after `build` on a fresh checkout           |
-| `pnpm test`      | Unit tests (Vitest)                                               |
+| Command              | What it does                                                      |
+| -------------------- | ----------------------------------------------------------------- |
+| `pnpm dev`           | Start the web app                                                 |
+| `pnpm check`         | Biome lint and format check                                       |
+| `pnpm format`        | Auto-format everything                                            |
+| `pnpm build`         | Production build (also generates `apps/web/src/routeTree.gen.ts`) |
+| `pnpm typecheck`     | TypeScript check. Run after `build` on a fresh checkout           |
+| `pnpm test`          | Unit tests (Vitest)                                               |
+| `pnpm test:e2e`      | Build, then Chromium E2E tests against a fake AI provider         |
+| `pnpm test:coverage` | Unit test coverage report (no threshold)                          |
 
-CI runs the same steps: lint, build, typecheck, test.
+CI runs the same steps: lint, build, typecheck, test. A separate, not-yet-required `E2E (Playwright)` job runs the E2E tests. The first time, install the browser with `pnpm --filter @unfold/web exec playwright install chromium`. E2E uses a fake AI provider, so it needs no key and no account (see `docs/internals/testing.md`).
 
 ## Making a change
 

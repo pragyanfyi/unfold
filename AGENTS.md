@@ -11,6 +11,7 @@ Unfold: a chat app where an AI interviews the user about an idea and a decision 
 - **Decided:** TanStack Start/Query/Hotkeys/AI, React Flow, shadcn/ui (toasts via Sonner), Better Auth with Google sign-in (ADR 0008), Cloudflare D1 + Drizzle (ADR 0009; no KV, ADR 0010), pnpm workspace (no Turborepo), Biome, Vitest, Playwright.
 - **Set up:** shadcn/ui, Tailwind v4 and the Sonner `<Toaster />` (ADR 0004); production deploy to Cloudflare Workers on release (ADR 0005, `docs/operations/deployment.md`).
 - **Built:** BYOK key entry, the server chat route with the interview tools (#26, Anthropic only), and the interview chat UI (#27, beside a placeholder canvas pane; tested in jsdom only).
+- **Tested:** Playwright + aimock E2E on the production build (`pnpm test:e2e`, ADR 0011, `docs/internals/testing.md`); post-deploy smoke in `deploy-production.yml`.
 - **Not built yet:** auth, database, canvas, hotkeys, saving conversations.
 - **Roadmap:** GitHub milestones `Interview`, `Canvas`, `Accounts and sync` (`gh issue list`); `Foundation` is done. Releases: release-please, see `docs/operations/releasing.md`.
 
@@ -29,6 +30,7 @@ pnpm check        # Biome lint + format (use `pnpm format` to fix)
 pnpm build        # also generates the TanStack route tree
 pnpm typecheck    # run AFTER build; needs the generated route tree
 pnpm test
+pnpm test:e2e     # builds, then Chromium E2E against aimock (once: `pnpm --filter @unfold/web exec playwright install chromium`)
 ```
 
 Run `pnpm check`, `pnpm build`, `pnpm typecheck` and `pnpm test` before declaring work done.

@@ -16,6 +16,7 @@ import {
   type SafeLogger,
 } from "./safe-log";
 import { SYSTEM_PROMPT } from "./system-prompt";
+import { testProviderBaseUrl } from "./test-provider-url";
 import { interviewTools } from "./tools";
 
 // Limits for one turn. The whole conversation travels with every request (the server
@@ -33,7 +34,8 @@ export type ChatDeps = {
 function defaultCreateAdapter(provider: ProviderId, key: string): AnyTextAdapter {
   // One provider today; the map is keyed by the allow-list so a new one is a type error here.
   const factories: Record<ProviderId, (key: string) => AnyTextAdapter> = {
-    anthropic: (k) => createAnthropicChat(PROVIDERS.anthropic.model, k),
+    anthropic: (k) =>
+      createAnthropicChat(PROVIDERS.anthropic.model, k, { baseURL: testProviderBaseUrl() }),
   };
   return factories[provider](key);
 }

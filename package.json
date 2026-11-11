@@ -16,7 +16,9 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check .",
-    "ci:lint": "biome ci ."
+    "ci:lint": "biome ci .",
+    "test:e2e": "pnpm --filter @unfold/web test:e2e",
+    "test:coverage": "pnpm --filter @unfold/web test:coverage"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6"
