@@ -17,7 +17,7 @@ What we checked (read 2026-11-12):
   - Performance advice: memoise custom nodes, memoise props passed to `<ReactFlow>`, do not read the whole node list inside components, keep node CSS simple. The page gives no node counts.
   - Keyboard support is built in: Tab moves through nodes, Enter or Space selects, Escape clears. Arrow keys move a selected node only when nodes are draggable.
   - Server rendering is supported since version 12 but needs node sizes and handle positions passed by hand.
-  - Animating nodes to new positions and automatic layout are both Pro examples (paid licence). The free docs describe no way to do it.
+  - The free layouting guide shows how to calculate positions once with dagre, d3-hierarchy, d3-force or ELK. The examples that lay out again when the graph changes (Auto Layout) and that animate nodes to new positions (Node Position Animation) are Pro examples under a paid licence.
   - The library is MIT. The corner attribution may be hidden only with a Pro subscription.
 - **Packages** (npm registry and bundlephobia, 2026-11-12):
 
@@ -32,6 +32,8 @@ What we checked (read 2026-11-12):
 - **This repo:** the CSP already allows inline style attributes, with React Flow named as a reason (`features/security/csp.ts`). On small screens the inactive pane is hidden with `display: none`, not unmounted (`components/two-pane.tsx`).
 
 ## Decision
+
+None of this is built yet. #30 builds it. The sections below use the present tense for brevity; read each as planned behaviour.
 
 ### Renderer: React Flow 12, read-only
 
@@ -84,7 +86,7 @@ When positions change, nodes move from the old position to the new one over abou
 
 With `prefers-reduced-motion`, nodes are placed at once with no animation.
 
-The viewport follows growth: after nodes are added, the canvas fits the whole tree. Following stops when the user pans or zooms, and the fit button turns it back on. On small screens the canvas fits again when its tab becomes visible, because a hidden pane has no size.
+The viewport follows growth: after nodes are added, the canvas fits the whole tree. Following stops when the user pans or zooms, and the fit button turns it back on. On small screens a hidden pane has no size, so a fit that was due while the canvas tab was hidden runs when the tab becomes visible. This happens only while following is on. If the user has panned or zoomed, switching tabs keeps their viewport.
 
 ### Performance
 
