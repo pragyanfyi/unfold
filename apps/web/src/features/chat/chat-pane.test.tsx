@@ -260,3 +260,143 @@ describe("ChatPane: stop", () => {
     expect(screen.queryByText("Asked 1 question")).toBeNull();
   });
 });
+
+describe("ChatPane: what it offers to storage (ADR 0013)", () => {
+  const answeredRound = {
+    id: "a1",
+    role: "assistant" as const,
+    parts: [
+      { type: "text" as const, content: "Let's start." },
+      {
+        type: "tool-call" as const,
+        id: "c1",
+        name: "ask_round",
+        arguments: JSON.stringify(ROUND),
+        input: ROUND,
+        state: "complete" as const,
+        output: { answers: { "1": { optionId: "A", text: null } } },
+      },
+    ],
+  };
+  const idea = {
+    id: "u1",
+    role: "user" as const,
+    parts: [{ type: "text" as const, content: "A picnic planner" }],
+  };
+
+  it("offers only growing prefixes of messages that never change afterwards", async () => {
+    stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+      { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
+      { text: "Great, we are done." },
+    ]);
+    const offered: Array<Array<{ id: string }>> = [];
+    const snapshots: Array<string> = [];
+    render(
+      <ChatPane
+        threadId="t1"
+        byok={await byokWithKey(true)}
+        onSavable={(messages) => {
+          offered.push(messages.map((m) => ({ id: m.id })));
+          snapshots.push(JSON.stringify(messages));
+        }}
+      />,
+    );
+    await sendIdea();
+    await screen.findByText("Who is it for?");
+    // The unanswered round is not offered.
+    expect(offered.at(-1)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("radio", { name: /A\s*Families/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Looks right" }));
+    await screen.findByText("Great, we are done.");
+
+    await waitFor(() => expect(offered.at(-1)).toHaveLength(4));
+    for (let i = 1; i < offered.length; i++) {
+      expect(offered[i].length).toBeGreaterThan(offered[i - 1].length);
+      expect(offered[i].slice(0, offered[i - 1].length)).toEqual(offered[i - 1]);
+    }
+    // Append-only: each offered message is already in its final form.
+    const final = JSON.parse(snapshots.at(-1) ?? "[]");
+    for (const snapshot of snapshots) {
+      const parsed = JSON.parse(snapshot) as Array<unknown>;
+      expect(parsed).toEqual(final.slice(0, parsed.length));
+    }
+  });
+
+  it("does not offer an idea that was refused for lack of a key", async () => {
+    stubNetwork([]);
+    const onSavable = vi.fn();
+    render(<ChatPane threadId="t1" byok={await byokWithKey(false)} onSavable={onSavable} />);
+    await sendIdea("My idea");
+    expect(await screen.findByLabelText("API key")).toBeTruthy();
+    expect(onSavable).not.toHaveBeenCalled();
+  });
+
+  it("offers the idea of a first turn that failed after it was sent, but never a half reply", async () => {
+    stubNetwork([{ error: "The provider is unavailable." }]);
+    const onSavable = vi.fn();
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onSavable={onSavable} />);
+    await sendIdea();
+    await screen.findByText("The reply failed");
+    expect(onSavable).toHaveBeenCalledTimes(1);
+    expect(onSavable.mock.calls[0][0].map((m: { role: string }) => m.role)).toEqual(["user"]);
+  });
+
+  it("continues a restored interview whose reply was cut off, from the stored answer", async () => {
+    const { fetchMock } = stubNetwork([
+      { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
+    ]);
+    const onSavable = vi.fn();
+    render(
+      <ChatPane
+        threadId="t1"
+        byok={await byokWithKey(true)}
+        initialMessages={[idea, answeredRound]}
+        onSavable={onSavable}
+      />,
+    );
+    // Opening it spends nothing: the user decides.
+    expect(await screen.findByText("The reply stopped")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("You are building a picnic planner for families.")).toBeTruthy();
+    // The stored round is kept as it was: the next request carries its answer.
+    expect(String((fetchMock.mock.calls[0][1] as RequestInit).body)).toContain("optionId");
+    expect(screen.getByText("Asked 1 question")).toBeTruthy();
+    // The 2 stored messages are not offered again, and the new proposal is still unanswered.
+    expect(onSavable).not.toHaveBeenCalled();
+  });
+
+  it("starts over through the app, not by clearing a stored conversation", async () => {
+    stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+      { text: "I forgot to ask a question." },
+    ]);
+    const onStartOver = vi.fn();
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onStartOver={onStartOver} />);
+    await sendIdea();
+    await screen.findByText("Who is it for?");
+    fireEvent.click(screen.getByRole("radio", { name: /A\s*Families/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start over" }));
+    expect(onStartOver).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ChatPane: leaving mid-interview", () => {
+  it("sends nothing to the provider when the pane closes while a round waits for an answer", async () => {
+    const { fetchMock } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
+    const { unmount } = render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
+    await sendIdea();
+    await screen.findByText("Who is it for?");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    unmount();
+    // Closing the pane must not resume the run with an error as the "answer": that would
+    // spend the user's key on a request they never made.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

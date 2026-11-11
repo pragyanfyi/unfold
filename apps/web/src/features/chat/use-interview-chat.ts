@@ -1,6 +1,7 @@
 import { fetchServerSentEvents, type UIMessage, useChat } from "@tanstack/ai-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getByok } from "#/features/byok/key-store";
+import { savablePrefix } from "#/features/storage/savable";
 import { DEFAULT_PROVIDER } from "./providers";
 import {
   type Answer,
@@ -37,7 +38,12 @@ type Waiter = {
 export function useInterviewChat(
   threadId: string,
   initialMessages?: Array<UIMessage>,
-  options: { byok?: ReturnType<typeof getByok>; onFinish?: (message: UIMessage) => void } = {},
+  options: {
+    byok?: ReturnType<typeof getByok>;
+    onFinish?: (message: UIMessage) => void;
+    /** Called with the messages that may be stored whenever that list grows (ADR 0013). */
+    onSavable?: (messages: Array<UIMessage>) => void;
+  } = {},
 ) {
   const [pending, setPending] = useState<PendingTurn | null>(null);
   const waiter = useRef<Waiter | null>(null);
@@ -84,17 +90,60 @@ export function useInterviewChat(
     ];
   }, [clearWaiter]);
 
+  const byok = options.byok ?? getByok();
+  const [finishedId, setFinishedId] = useState<string | null>(null);
+  const onFinish = options.onFinish;
+  const handleFinish = useCallback(
+    (message: UIMessage) => {
+      setFinishedId(message.id);
+      onFinish?.(message);
+    },
+    [onFinish],
+  );
+
   const chat = useChat({
     threadId,
     initialMessages,
     connection: fetchServerSentEvents("/api/chat"),
-    byok: options.byok ?? getByok(),
+    byok,
     forwardedProps: { provider: DEFAULT_PROVIDER },
     tools,
-    onFinish: options.onFinish,
+    onFinish: handleFinish,
   });
 
-  useEffect(() => () => clearWaiter(new Error("Closed")), [clearWaiter]);
+  // Tell storage what may be saved, but only when the list grows: streaming changes the
+  // messages on every token and the savable prefix on almost none of them.
+  const onSavable = options.onSavable;
+  const reported = useRef(initialMessages?.length ?? 0);
+  const status = chat.status;
+  const blocked = Boolean(byok.getSnapshot().prompt);
+  useEffect(() => {
+    if (!onSavable) return;
+    const prefix = savablePrefix(chat.messages, { status, blocked, finishedId });
+    if (prefix.length > reported.current) {
+      reported.current = prefix.length;
+      onSavable(prefix);
+    }
+  }, [chat.messages, status, blocked, finishedId, onSavable]);
+
+  // A conversation restored from storage that ends in an answered round or proposal had its
+  // reply cut off by a reload (the answer is stored, the reply is not). It can be continued by
+  // re-submitting that answer. Once any run has started, the library's own retry applies.
+  const restoredTail = useRef(lastAnsweredCall(initialMessages ?? []));
+  if (status !== "ready" && restoredTail.current) restoredTail.current = null;
+
+  // Closing the pane while a question waits must not answer it. Rejecting the waiter alone
+  // makes the library resume the run with the error as the tool result, which sends a request
+  // (and spends the user's key) nobody asked for. Abort the run first.
+  const stopRun = useRef(chat.stop);
+  stopRun.current = chat.stop;
+  useEffect(
+    () => () => {
+      stopRun.current();
+      clearWaiter(new Error("Closed"));
+    },
+    [clearWaiter],
+  );
 
   const resolve = useCallback((output: RoundAnswers | FinishDecision) => {
     const current = waiter.current;
@@ -130,9 +179,22 @@ export function useInterviewChat(
   // A resume the user stopped cannot be retried at all (`retryInterrupts()` is a no-op and no
   // resume state is kept), so Stop is only offered before the first answer (see ChatPane).
   const retry = useCallback(() => {
-    if (!hasAnswered) void chat.reload();
+    const call = restoredTail.current;
+    if (call) {
+      restoredTail.current = null;
+      void chat.addToolResult({ toolCallId: call.id, tool: call.name, output: call.output });
+    } else if (!hasAnswered) void chat.reload();
     else chat.retryInterrupts();
   }, [chat, hasAnswered]);
 
-  return { ...chat, stop, retry, hasAnswered, pending, submitRound, submitFinish };
+  const resumable = restoredTail.current !== null;
+  return { ...chat, stop, retry, hasAnswered, resumable, pending, submitRound, submitFinish };
+}
+
+// The answered tool call that ends the conversation, if the last message is such a call.
+function lastAnsweredCall(messages: ReadonlyArray<UIMessage>) {
+  const last = messages.at(-1);
+  if (last?.role !== "assistant") return null;
+  const call = last.parts.filter((part) => part.type === "tool-call").at(-1);
+  return call?.type === "tool-call" && call.output !== undefined ? call : null;
 }

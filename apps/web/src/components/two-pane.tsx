@@ -11,7 +11,7 @@ export function TwoPane({ chat, canvas }: { chat: ReactNode; canvas: ReactNode }
     <Tabs
       value={tab}
       onValueChange={setTab}
-      className="h-dvh min-h-0 gap-0 md:data-horizontal:flex-row"
+      className="h-full min-h-0 gap-0 md:data-horizontal:flex-row"
     >
       <TabsList className="m-2 self-center md:hidden">
         <TabsTrigger value="chat">Chat</TabsTrigger>

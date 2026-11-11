@@ -31,14 +31,20 @@ export function ChatPane({
   threadId,
   initialMessages,
   onFinish,
+  onSavable,
+  onStartOver,
   byok = getByok(),
 }: {
   threadId: string;
   initialMessages?: Array<UIMessage>;
   onFinish?: (message: UIMessage) => void;
+  /** Called when more of the conversation may be stored (ADR 0013). */
+  onSavable?: (messages: Array<UIMessage>) => void;
+  /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */
+  onStartOver?: () => void;
   byok?: ReturnType<typeof getByok>;
 }) {
-  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish });
+  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
   const snapshot = useByok(byok);
   const keyState = snapshot.status[DEFAULT_PROVIDER]?.state;
   const hasKey = keyState === "set" || keyState === "locked";
@@ -154,7 +160,7 @@ export function ChatPane({
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 pb-4">
         {chat.error && !busy ? (
           <TurnError message={chat.error.message} onRetry={chat.retry} />
-        ) : stalled && !chat.hasAnswered ? (
+        ) : stalled && (!chat.hasAnswered || chat.resumable) ? (
           <TurnError
             title="The reply stopped"
             message="It did not finish. Try again to continue the interview."
@@ -166,7 +172,7 @@ export function ChatPane({
             title="The interview cannot continue"
             message="The reply ended without a question, and this conversation cannot be resumed."
             actionLabel="Start over"
-            onRetry={chat.clear}
+            onRetry={onStartOver ?? chat.clear}
           />
         ) : null}
         {chat.pending?.kind === "round" ? (
