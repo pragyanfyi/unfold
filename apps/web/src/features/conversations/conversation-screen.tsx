@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TwoPane } from "#/components/two-pane";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
@@ -29,6 +29,9 @@ export function ConversationScreen() {
   const [live, setLive] = useState<string | null>(null);
   const threadId = pathId ?? draftId;
   if (live !== null && live !== threadId) setLive(null);
+  // What the user is looking at now. A first save can finish after they have moved on.
+  const current = useRef(threadId);
+  current.current = threadId;
 
   useEffect(
     () =>
@@ -65,6 +68,9 @@ export function ConversationScreen() {
               id={threadId}
               loaded={null}
               onFirstSave={() => {
+                // Left this idea while it was being saved: it is in the list now, and the
+                // user's current choice must not be replaced by its address.
+                if (current.current !== threadId) return;
                 setLive(threadId);
                 if (pathId === undefined) {
                   void navigate({ to: "/c/$id", params: { id: threadId }, replace: true });
@@ -103,9 +109,16 @@ function SavedConversation({ id, onNew }: { id: string; onNew: () => void }) {
         <AlertTitle>Idea not found</AlertTitle>
         <AlertDescription className="flex flex-col items-start gap-2">
           <span>{message}</span>
-          <Button type="button" variant="outline" size="sm" onClick={onNew}>
-            New idea
-          </Button>
+          <div className="flex gap-2">
+            {query.isError ? (
+              <Button type="button" size="sm" onClick={() => void query.refetch()}>
+                Try again
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" size="sm" onClick={onNew}>
+              New idea
+            </Button>
+          </div>
         </AlertDescription>
       </Alert>
     </div>

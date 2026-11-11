@@ -368,6 +368,48 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     expect(onSavable).not.toHaveBeenCalled();
   });
 
+  it("continues a confirmed finish whose closing reply was never stored", async () => {
+    const { fetchMock } = stubNetwork([{ text: "Great, we are done." }]);
+    const finishCall = {
+      type: "tool-call" as const,
+      id: "c2",
+      name: "propose_finish",
+      arguments: JSON.stringify(FINISH),
+      input: FINISH,
+      state: "complete" as const,
+      output: { confirmed: true, text: null },
+    };
+    render(
+      <ChatPane
+        threadId="t1"
+        byok={await byokWithKey(true)}
+        initialMessages={[
+          idea,
+          answeredRound,
+          { id: "a2", role: "assistant", parts: [{ type: "text", content: "Done?" }, finishCall] },
+        ]}
+      />,
+    );
+    expect(await screen.findByText("The reply stopped")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Great, we are done.")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the key before continuing a restored conversation that has none", async () => {
+    const { fetchMock } = stubNetwork([]);
+    render(
+      <ChatPane
+        threadId="t1"
+        byok={await byokWithKey(false)}
+        initialMessages={[idea, answeredRound]}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByLabelText("API key")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("starts over through the app, not by clearing a stored conversation", async () => {
     stubNetwork([
       { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
@@ -395,8 +437,9 @@ describe("ChatPane: leaving mid-interview", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     unmount();
     // Closing the pane must not resume the run with an error as the "answer": that would
-    // spend the user's key on a request they never made.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // spend the user's key on a request they never made. Absence cannot be awaited, so drain
+    // many scheduler turns, enough for the abort, the rejection and a follow-up request to run.
+    for (let turn = 0; turn < 50; turn++) await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

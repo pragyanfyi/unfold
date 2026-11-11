@@ -48,8 +48,8 @@ export function SaveNotice({
           <span>
             Nothing more is saved from this tab, so nothing is overwritten.
             {status.reason === "deleted"
-              ? " Start a new idea to keep going."
-              : " Reload to see the saved version."}
+              ? " Starting a new idea leaves this conversation, and anything not saved from this tab is lost."
+              : " Reloading shows the saved version, and anything not saved from this tab is lost."}
           </span>
           {status.reason === "deleted" ? (
             <Button type="button" variant="outline" size="sm" onClick={onNew}>

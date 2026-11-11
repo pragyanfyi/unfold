@@ -17,6 +17,34 @@ async function sendIdea(page: Page, idea: string) {
   await page.getByRole("button", { name: "Send" }).click();
 }
 
+// How many messages the browser has stored, read straight from IndexedDB. A reload before a
+// save has committed would race it, so tests wait for this instead of guessing.
+async function storedMessages(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open("unfold");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains("messages")) {
+            db.close();
+            resolve(0);
+            return;
+          }
+          const count = db.transaction("messages").objectStore("messages").count();
+          count.onsuccess = () => {
+            db.close();
+            resolve(count.result);
+          };
+          count.onerror = () => reject(count.error);
+        };
+      }),
+  );
+}
+
+const chat = (page: Page) => page.getByRole("region", { name: "Interview chat" });
+
 const SAVED_URL = /\/c\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 test.beforeEach(async ({ page }) => {
@@ -36,8 +64,9 @@ test("saves an idea, lists it, and restores the interview after each reload", as
   await expect(page.getByRole("link", { name: idea })).toBeVisible();
 
   // A round still waiting for an answer is not stored, so the reload asks it again.
+  await expect.poll(() => storedMessages(page)).toBe(1);
   await page.reload();
-  await expect(page.getByText(idea, { exact: true }).first()).toBeVisible();
+  await expect(chat(page).getByText(idea, { exact: true })).toBeVisible();
   const stopped = page.getByRole("alert").filter({ hasText: "The reply stopped" });
   await expect(stopped).toBeVisible();
   await stopped.getByRole("button", { name: "Try again" }).click();
@@ -50,6 +79,7 @@ test("saves an idea, lists it, and restores the interview after each reload", as
   await expect(page.getByText("Storage works across reloads.")).toBeVisible();
 
   // An answered round is stored. The reply that followed it was not, so it can be continued.
+  await expect.poll(() => storedMessages(page)).toBe(2);
   await page.reload();
   await expect(page.getByText("Asked 1 question")).toBeVisible();
   await expect(page.getByText("Storage works across reloads.")).toBeHidden();
@@ -74,11 +104,11 @@ test("opens a saved idea from the list, and starts a new one beside it", async (
 
   await page.getByRole("link", { name: idea }).click();
   await expect(page).toHaveURL(address);
-  await expect(page.getByText(idea, { exact: true }).first()).toBeVisible();
+  await expect(chat(page).getByText(idea, { exact: true })).toBeVisible();
 
   // A fresh browser load of the address finds it too.
   await page.goto(address);
-  await expect(page.getByText(idea, { exact: true }).first()).toBeVisible();
+  await expect(chat(page).getByText(idea, { exact: true })).toBeVisible();
 });
 
 test("renames and deletes an idea", async ({ page }) => {

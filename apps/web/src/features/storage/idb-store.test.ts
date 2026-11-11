@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import type { UIMessage } from "@tanstack/ai-react";
 import { openDB } from "idb";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIdbStore } from "./idb-store";
 import { type ConversationStore, StorageError } from "./store";
 import { SCHEMA_VERSION } from "./types";
@@ -137,12 +137,19 @@ describe("rename", () => {
 
 describe("list and remove", () => {
   it("lists the most recently updated first", async () => {
-    await store.create({ id: "a", title: "A", messages: [message("a1")] });
-    await new Promise((r) => setTimeout(r, 5));
-    await store.create({ id: "b", title: "B", messages: [message("b1")] });
-    await new Promise((r) => setTimeout(r, 5));
-    await store.append("a", 1, [message("a2")]);
-    expect((await store.list()).map((r) => r.id)).toEqual(["a", "b"]);
+    // Only `Date` is faked: the order must not depend on the wall clock's resolution.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:01Z"));
+      await store.create({ id: "a", title: "A", messages: [message("a1")] });
+      vi.setSystemTime(new Date("2026-01-01T00:00:02Z"));
+      await store.create({ id: "b", title: "B", messages: [message("b1")] });
+      vi.setSystemTime(new Date("2026-01-01T00:00:03Z"));
+      await store.append("a", 1, [message("a2")]);
+      expect((await store.list()).map((r) => r.id)).toEqual(["a", "b"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("removes the record and every message, and only that conversation's", async () => {

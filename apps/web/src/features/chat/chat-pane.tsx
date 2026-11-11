@@ -85,6 +85,16 @@ export function ChatPane({
     !confirmed &&
     visible.length > 0 &&
     !endsInUnansweredCall;
+  // A restored conversation whose stored answer has no reply (a reload cut it off). This holds
+  // for a confirmed finish too, whose closing reply was never stored, so it does not depend on
+  // `stalled`, which is false once the interview is confirmed.
+  const cutOff = chat.resumable && !busy && !chat.pending && !chat.error;
+  // Continuing spends the user's key, so ask for one first. A restored conversation does not
+  // reach the send path that does this.
+  const retry = () => {
+    if (!hasKey) setKeyOpen(true);
+    else chat.retry();
+  };
 
   async function send(text: string) {
     setDraft("");
@@ -159,12 +169,12 @@ export function ChatPane({
 
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 pb-4">
         {chat.error && !busy ? (
-          <TurnError message={chat.error.message} onRetry={chat.retry} />
-        ) : stalled && (!chat.hasAnswered || chat.resumable) ? (
+          <TurnError message={chat.error.message} onRetry={retry} />
+        ) : cutOff || (stalled && !chat.hasAnswered) ? (
           <TurnError
             title="The reply stopped"
             message="It did not finish. Try again to continue the interview."
-            onRetry={chat.retry}
+            onRetry={retry}
           />
         ) : stalled ? (
           // After an answer there is nothing to retry (see use-interview-chat.ts).
@@ -206,7 +216,7 @@ export function ChatPane({
           </p>
         )}
       </div>
-      {keyInEmptyState ? null : <div className="hidden">{keyControl}</div>}
+      {keyInEmptyState ? null : <div className={hasKey ? "hidden" : "px-4 pb-4"}>{keyControl}</div>}
     </section>
   );
 }
