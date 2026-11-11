@@ -369,7 +369,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
   });
 
   it("continues a confirmed finish whose closing reply was never stored", async () => {
-    const { fetchMock } = stubNetwork([{ text: "Great, we are done." }]);
+    const { fake, fetchMock } = stubNetwork([{ text: "Great, we are done." }]);
     const finishCall = {
       type: "tool-call" as const,
       id: "c2",
@@ -394,6 +394,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Great, we are done.")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("asks for the key before continuing a restored conversation that has none", async () => {
