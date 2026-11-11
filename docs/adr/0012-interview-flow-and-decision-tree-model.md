@@ -103,11 +103,11 @@ type TreeNode = {
   answer: { optionId: string | null; text: string | null } | null; // the idea node holds the idea as text
   decision: string | null; // written by the model in the next call
   messageId: string; // chat message that asked it, for #31
-  askedAt: string; // ISO 8601, from the asking message's timestamp
-  answeredAt: string | null; // from the answer message's timestamp
   state: "pending" | "answered" | "settled" | "open"; // the idea node is "settled" from the start
 };
 ```
+
+An earlier version of this ADR also listed `askedAt` and `answeredAt`. They were dropped when `deriveTree` was built (#30): an answer is the tool result on the asking message (see Answers), so it has no message of its own to take a time from, and nothing reads either field yet.
 
 There is exactly one `idea` node, created from the first message. The tree's status is `interviewing`, `proposed` (after `propose_finish`) or `finished` (after the user confirms), and the summary comes from `propose_finish`. All of these are derived too.
 
