@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { testProviderBaseUrl } from "./test-provider-url";
 
 describe("testProviderBaseUrl", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it("is unset by default", () => {
+    // `undefined` falls back to the environment, so make sure it is empty.
+    vi.stubEnv("UNFOLD_TEST_PROVIDER_URL", "");
     expect(testProviderBaseUrl(undefined)).toBeUndefined();
     expect(testProviderBaseUrl("")).toBeUndefined();
   });

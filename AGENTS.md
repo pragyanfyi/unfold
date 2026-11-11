@@ -30,7 +30,7 @@ pnpm check        # Biome lint + format (use `pnpm format` to fix)
 pnpm build        # also generates the TanStack route tree
 pnpm typecheck    # run AFTER build; needs the generated route tree
 pnpm test
-pnpm test:e2e     # builds, then Chromium E2E against aimock (needs `pnpm exec playwright install chromium` once)
+pnpm test:e2e     # builds, then Chromium E2E against aimock (once: `pnpm --filter @unfold/web exec playwright install chromium`)
 ```
 
 Run `pnpm check`, `pnpm build`, `pnpm typecheck` and `pnpm test` before declaring work done.
