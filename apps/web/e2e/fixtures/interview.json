@@ -104,16 +104,6 @@
             "arguments": {
               "settled": [
                 {
-                  "id": "r1q1",
-                  "decision": "Families",
-                  "status": "settled"
-                },
-                {
-                  "id": "r1q2",
-                  "decision": "Word of mouth",
-                  "status": "settled"
-                },
-                {
                   "id": "r2q1",
                   "decision": "Subscription",
                   "status": "settled"

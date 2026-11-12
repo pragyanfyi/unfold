@@ -1,11 +1,11 @@
 # 14. Canvas rendering and layout
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-12
 
 ## Context
 
-ADR 0012 makes the canvas a view of the tree that `deriveTree(messages)` computes: one `idea` root, question nodes with one `parentId` each (solid edge), optional `dependsOn` (dashed edges), and a state per node. It leaves the layout and the look of the canvas to this ADR. The canvas pane exists as a placeholder (`features/canvas/canvas-placeholder.tsx`). `deriveTree` is specified but not built yet, so #30 builds it together with the canvas.
+ADR 0012 makes the canvas a view of the tree that `deriveTree(messages)` computes: one `idea` root, question nodes with one `parentId` each (solid edge), optional `dependsOn` (dashed edges), and a state per node. It leaves the layout and the look of the canvas to this ADR. The canvas pane exists as a placeholder (`features/canvas/canvas-placeholder.tsx`). `deriveTree` was specified but not built when this was written; #30 builds it first (`features/tree/derive-tree.ts`), then the canvas.
 
 The tree is small and grows in steps. A round adds a handful of nodes, so an interview ends with tens of nodes, not thousands. It is append-only, and users cannot edit it by hand (ADR 0012). The canvas is therefore a read-only picture that has to stay calm while it grows.
 
