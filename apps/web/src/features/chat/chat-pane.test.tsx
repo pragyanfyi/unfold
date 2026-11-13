@@ -119,6 +119,26 @@ describe("ChatPane: the interview", () => {
   });
 });
 
+describe("ChatPane: the tree it hands out (ADR 0012)", () => {
+  it("reports the tree when its content changes, not on every streamed token", async () => {
+    const onTree = vi.fn();
+    const long = "word ".repeat(60);
+    const { fake } = stubNetwork(
+      [{ text: long, toolCalls: [{ name: "ask_round", input: ROUND }] }],
+      { slow: true },
+    );
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onTree={onTree} />);
+    await sendIdea();
+    await screen.findByText("Who is it for?", undefined, { timeout: 10_000 });
+
+    const ids = (call: Array<{ nodes: Array<{ id: string }> }>) =>
+      call[0].nodes.map((node) => node.id).join(",");
+    // Empty, then the idea, then the round: the 60 streamed words changed nothing.
+    expect(onTree.mock.calls.map(ids)).toEqual(["", "idea", "idea,r1q1"]);
+    expect(fake.pendingResponses()).toBe(0);
+  }, 15_000);
+});
+
 describe("ChatPane: restored messages", () => {
   it("renders initialMessages with an answered round collapsed, and no composer", async () => {
     stubNetwork([]);

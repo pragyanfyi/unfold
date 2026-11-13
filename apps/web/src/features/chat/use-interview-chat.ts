@@ -2,7 +2,7 @@ import { type UIMessage, useChat } from "@tanstack/ai-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getByok } from "#/features/byok/key-store";
 import { savablePrefix } from "#/features/storage/savable";
-import { deriveTree } from "#/features/tree/derive-tree";
+import { deriveTree, type Tree } from "#/features/tree/derive-tree";
 import { interviewConnection } from "./connection";
 import { DEFAULT_PROVIDER } from "./providers";
 import {
@@ -193,19 +193,25 @@ export function useInterviewChat(
     else chat.retryInterrupts();
   }, [chat, hasAnswered]);
 
-  // Why the model's last turn broke the interview rules, if it did (ADR 0012, Validation).
+  // The decision tree (ADR 0012). Streaming changes the messages on every token and the tree
+  // on almost none of them, so the same object is handed out until its content changes. The
+  // canvas can then skip its work by identity.
   const messages = chat.messages;
+  const lastTree = useRef<{ key: string; tree: Tree } | null>(null);
+  const tree = useMemo(() => {
+    const next = deriveTree(messages);
+    const key = JSON.stringify(next);
+    if (lastTree.current?.key !== key) lastTree.current = { key, tree: next };
+    return lastTree.current.tree;
+  }, [messages]);
+
+  // Why the model's last turn broke the interview rules, if it did (ADR 0012, Validation).
   // A reply is complete when the library reported it as finished, or it came from storage,
   // which holds only messages that no longer change (ADR 0013).
   const restoredIds = useRef(new Set(initialMessages?.map((message) => message.id)));
   const problem = useMemo(
-    () =>
-      turnProblem(
-        messages,
-        deriveTree(messages),
-        (id) => id === finishedId || restoredIds.current.has(id),
-      ),
-    [messages, finishedId],
+    () => turnProblem(messages, tree, (id) => id === finishedId || restoredIds.current.has(id)),
+    [messages, tree, finishedId],
   );
 
   const resumable = restoredTail.current !== null;
@@ -217,6 +223,7 @@ export function useInterviewChat(
     resumable,
     pending,
     problem,
+    tree,
     submitRound,
     submitFinish,
   };

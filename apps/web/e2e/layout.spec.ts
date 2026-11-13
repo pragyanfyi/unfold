@@ -31,6 +31,9 @@ test.describe("desktop 1280x800", () => {
     expect(canvas.x).toBeGreaterThanOrEqual(chat.x + chat.width - 1);
     expect(chat.height).toBeGreaterThan(700);
     expect(canvas.height).toBeGreaterThan(700);
+    const tree = page.getByRole("region", { name: "Decision tree" });
+    await expect(tree.getByTestId("tree-node-idea")).toBeInViewport({ ratio: 1 });
+    await expect(tree.getByTestId("tree-node-r1q1")).toBeInViewport({ ratio: 1 });
 
     await page.screenshot({ path: testInfo.outputPath("desktop-1280x800.png") });
   });
@@ -57,6 +60,9 @@ test.describe("mobile 390x800", () => {
     await page.getByRole("tab", { name: "Canvas" }).click();
     await expect(canvas).toBeVisible();
     await expect(chat).toBeHidden();
+    // The tree was fitted while this pane was hidden and had no size. It is fitted again now.
+    await expect(canvas.getByTestId("tree-node-idea")).toBeInViewport({ ratio: 1 });
+    await expect(canvas.getByTestId("tree-node-r1q1")).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: testInfo.outputPath("mobile-canvas-390x800.png") });
 
     // The hidden chat stays mounted: its round is still there after switching back.
