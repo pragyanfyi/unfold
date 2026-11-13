@@ -375,4 +375,44 @@ describe("chat route: the library's own error logging", () => {
     expect(out.join("\n")).not.toContain("x-byok");
     expect(text).not.toContain(SENTINEL_KEY);
   });
+
+  // The library hands its logger a label of its own ("anthropic.chatStream fatal") and puts
+  // the caught error in `meta`, which `libraryLogger` drops. So what a provider says, which
+  // can quote the user's conversation, stays out of the log. This fails if a library upgrade
+  // starts writing the error text into the label (#54).
+  it("keeps conversation text quoted by a provider error out of the log", async () => {
+    const QUOTED = "CONVERSATION-SENTINEL-picnic-for-families";
+    const out: string[] = [];
+    for (const method of ["log", "info", "warn", "error", "debug", "trace"] as const) {
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        out.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+      });
+    }
+    const request = () =>
+      post(body({ messages: [{ id: "m1", role: "user", content: QUOTED }] }), withKey);
+
+    // An error the provider streams back.
+    const scripted = fakeText();
+    scripted.setResponses([{ error: `400 invalid request near "${QUOTED}"` }]);
+    const streamed = await handleChatRequest(request(), { createAdapter: () => scripted });
+    const streamedText = await streamed.text();
+    expect(scripted.pendingResponses()).toBe(0);
+
+    // An error the provider SDK throws, with the request attached.
+    const throwing = fakeText();
+    throwing.chatStream = () => {
+      throw Object.assign(new Error(`400 invalid request near "${QUOTED}"`), {
+        request: { body: QUOTED },
+      });
+    };
+    const thrown = await handleChatRequest(request(), { createAdapter: () => throwing });
+    const thrownText = await thrown.text();
+
+    expect(out.some((line) => line.includes('"event":"ai.error"'))).toBe(true);
+    expect(out.join("\n")).not.toContain(QUOTED);
+    // The user who wrote it still sees the provider's message: it is how they learn what
+    // went wrong (an invalid key, no credit). Keys are scrubbed from it, see above.
+    expect(streamedText).toContain(QUOTED);
+    expect(thrownText).toContain("RUN_ERROR");
+  });
 });
