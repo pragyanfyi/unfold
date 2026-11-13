@@ -136,6 +136,8 @@ The app creates ids and rounds and validates every assistant turn. A turn is rej
 
 Rejection works in two ways. A bad tool call gets an error tool result, and when a turn has more than one tool call, none is applied and each gets an error tool result saying only one is allowed. A missing tool call has no call id to attach a result to, so the app instead sends an app-generated correction message, marked as not written by the user. Either way the model gets one retry. If the retry fails, the turn fails with a visible error. `deriveTree` ignores rejected calls and correction messages. The tree is never silently repaired.
 
+Built in #51, without the retry. The error tool result, the correction message and the single retry described above are **not built**. A turn that breaks a rule fails straight away with a visible error in the chat, in place of the questionnaire (`features/chat/turn-problem.ts`). `deriveTree` reports every rejected turn that has a tool call. A finished reply with no tool call is caught by the chat, because from the messages alone it looks like a reply still streaming. Before the first answer the error offers Try again, which asks the model once more. After an answer it offers only Start over, for the reason given in the #27 notes below (a resumed run cannot be retried). The error is worded for the user and does not show the validator's reason, which names ids and fields. Only the last turn is checked.
+
 The ADR fixes these rules as invariants. The full list of checks is implementation detail and is covered by `deriveTree` and validator unit tests.
 
 ### Context sent each turn

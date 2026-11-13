@@ -168,6 +168,7 @@ describe("ChatPane: finishing", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Looks right" }));
     expect(await screen.findByText("Great, we are done.")).toBeTruthy();
     expect(screen.queryByText("The interview cannot continue")).toBeNull();
+    expect(screen.queryByText("The reply broke the interview rules")).toBeNull();
     expect(screen.queryByRole("button", { name: "Looks right" })).toBeNull();
   });
 
@@ -177,7 +178,8 @@ describe("ChatPane: finishing", () => {
       { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
       {
         text: "One more thing.",
-        toolCalls: [{ name: "ask_round", input: { ...ROUND, settled: FINISH.settled } }],
+        // The proposal already settled r1q1, so this round has nothing left to settle.
+        toolCalls: [{ name: "ask_round", input: ROUND }],
       },
     ]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
@@ -252,7 +254,8 @@ describe("ChatPane: stop", () => {
     fireEvent.click(screen.getByRole("radio", { name: /A\s*Families/ }));
     fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
 
-    expect(await screen.findByText("The interview cannot continue")).toBeTruthy();
+    expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
+    expect(screen.getByText(/replied without asking a question/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("Asked 1 question")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
@@ -442,5 +445,94 @@ describe("ChatPane: leaving mid-interview", () => {
     // many scheduler turns, enough for the abort, the rejection and a follow-up request to run.
     for (let turn = 0; turn < 50; turn++) await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
+  const BAD_ROUND = {
+    settled: [],
+    questions: [{ ...ROUND.questions[0], parentId: "r9q9" }],
+  };
+
+  it("shows an error instead of the questionnaire, and asks again on Try again", async () => {
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: BAD_ROUND }] },
+      { text: "Second try.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
+    await sendIdea();
+
+    expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
+    expect(screen.getByText(/do not fit the decisions made so far/)).toBeTruthy();
+    expect(screen.queryByText("Who is it for?")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Who is it for?")).toBeTruthy();
+    expect(screen.queryByText("The reply broke the interview rules")).toBeNull();
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("rejects a turn with two tool calls", async () => {
+    const { fake } = stubNetwork([
+      {
+        text: "Two at once.",
+        toolCalls: [
+          { name: "ask_round", input: ROUND },
+          { name: "ask_round", input: ROUND },
+        ],
+      },
+    ]);
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
+    await sendIdea();
+    expect(await screen.findByText(/do not fit the decisions made so far/)).toBeTruthy();
+    expect(screen.queryByText("Who is it for?")).toBeNull();
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("rejects a first reply that ends without a tool call", async () => {
+    const { fake } = stubNetwork([{ text: "Just words." }]);
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
+    await sendIdea();
+    expect(await screen.findByText(/replied without asking a question/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("after an answer, offers only Start over and sends nothing more", async () => {
+    const onStartOver = vi.fn();
+    const { fake, fetchMock } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+      // `settled` must list r1q1, and it lists nothing.
+      { text: "Next.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onStartOver={onStartOver} />);
+    await sendIdea();
+    fireEvent.click(await screen.findByRole("radio", { name: /A\s*Families/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
+
+    expect(await screen.findByText(/do not fit the decisions made so far/)).toBeTruthy();
+    expect(screen.queryByRole("form", { name: /questions for this round/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    expect(onStartOver).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("rejects a stored reply that ended without a tool call", async () => {
+    stubNetwork([]);
+    render(
+      <ChatPane
+        threadId="t1"
+        byok={await byokWithKey(true)}
+        initialMessages={[
+          { id: "u1", role: "user", parts: [{ type: "text", content: "A picnic planner" }] },
+          { id: "a1", role: "assistant", parts: [{ type: "text", content: "Just words." }] },
+        ]}
+      />,
+    );
+    expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
+    expect(screen.getByText(/replied without asking a question/)).toBeTruthy();
   });
 });
