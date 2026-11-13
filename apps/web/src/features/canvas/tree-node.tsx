@@ -31,7 +31,10 @@ const STATE_TONE: Record<NodeState, string> = {
 function TreeNodeCard({ id, data, selected }: NodeProps<TreeFlowNode>) {
   const idea = data.kind === "idea";
   const Icon = idea ? LightbulbIcon : STATE_ICON[data.state];
-  const note = data.askedAgain ? "Asked again" : data.asksAgain ? "Asking again" : null;
+  // The middle of a chain of revisits is both.
+  const note = [data.asksAgain ? "Asking again" : null, data.askedAgain ? "Asked again" : null]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div
       data-testid={`tree-node-${id}`}

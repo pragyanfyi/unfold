@@ -59,9 +59,13 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
   }, [fitView]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `shape` is the trigger. Fit again when the tree gains nodes.
   useEffect(fitTree, [fitTree, shape]);
-  // A user's pan or zoom comes with its event. Our own fit has none.
+  // A user's pan or zoom comes with its event. Our own fit has none, and neither have the
+  // zoom buttons, which say so themselves.
   const onMoveStart = useCallback<OnMoveStart>((event) => {
     if (event) following.current = false;
+  }, []);
+  const unfollow = useCallback(() => {
+    following.current = false;
   }, []);
   const follow = useCallback(() => {
     following.current = true;
@@ -112,7 +116,13 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
         edgesFocusable={false}
         deleteKeyCode={null}
       >
-        <Controls showInteractive={false} fitViewOptions={FIT} onFitView={follow} />
+        <Controls
+          showInteractive={false}
+          fitViewOptions={FIT}
+          onFitView={follow}
+          onZoomIn={unfollow}
+          onZoomOut={unfollow}
+        />
       </ReactFlow>
     </div>
   );

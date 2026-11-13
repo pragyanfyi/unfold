@@ -69,6 +69,9 @@ test("runs an interview: idea, round, answers, next round, finish", async ({ pag
   await expect(node("r1q2")).toHaveAttribute("data-state", "pending");
   await expect(canvas.getByTestId("tree-edge-idea-r1q1")).toHaveAttribute("data-kind", "parent");
   await expect(canvas.getByTestId(/^tree-node-/)).toHaveCount(3);
+  // A zoom button sets the user's own view: the next round must not fit the tree over it.
+  await canvas.getByRole("button", { name: "Zoom Out" }).click();
+  const zoomed = await node("idea").boundingBox();
 
   await expect(round.getByText("Who is it for?")).toBeVisible();
   // Option A is the recommendation.
@@ -94,6 +97,7 @@ test("runs an interview: idea, round, answers, next round, finish", async ({ pag
   await expect(canvas.getByTestId("tree-edge-r1q1-r2q1")).toHaveAttribute("data-kind", "parent");
   await expect(canvas.getByTestId(/^tree-node-/)).toHaveCount(4);
   await expect(node("r2q1")).toBeInViewport();
+  expect(await node("idea").boundingBox()).toEqual(zoomed);
 
   // Selecting a node marks it, and the background clears it.
   await node("r1q2").click();
