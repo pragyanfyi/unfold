@@ -220,6 +220,7 @@ describe("chat route: tree outline (ADR 0012)", () => {
     });
     await res.text();
     expect(res.status).toBe(200);
+    expect(fake.pendingResponses()).toBe(0);
     return prompts;
   }
 
@@ -275,6 +276,7 @@ describe("chat route: tree outline (ADR 0012)", () => {
         createAdapter: () => fake,
       });
       await res.text();
+      expect(fake.pendingResponses()).toBe(0);
     }
     const bad = [{ ...outline[1], state: "nope" }];
     await handleChatRequest(post(body({ forwardedProps: { outline: bad } }), withKey));
