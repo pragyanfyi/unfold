@@ -50,7 +50,10 @@ export function buildRoundAnswers(drafts: ReadonlyArray<Answer>): RoundAnswers {
 }
 
 // One line for the chat history: "A. Families: Mostly families", "A. Families" or the text.
-export function describeAnswer(question: RoundQuestion, answer: Answer): string {
+export function describeAnswer(
+  question: { options: ReadonlyArray<{ label: string }> },
+  answer: Answer,
+): string {
   const index = answer.optionId ? answer.optionId.charCodeAt(0) - 65 : -1;
   const option = question.options[index];
   const choice = option ? `${answer.optionId}. ${option.label}` : null;
