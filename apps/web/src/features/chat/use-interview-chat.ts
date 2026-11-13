@@ -1,8 +1,9 @@
-import { fetchServerSentEvents, type UIMessage, useChat } from "@tanstack/ai-react";
+import { type UIMessage, useChat } from "@tanstack/ai-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getByok } from "#/features/byok/key-store";
 import { savablePrefix } from "#/features/storage/savable";
 import { deriveTree } from "#/features/tree/derive-tree";
+import { interviewConnection } from "./connection";
 import { DEFAULT_PROVIDER } from "./providers";
 import {
   type Answer,
@@ -14,6 +15,9 @@ import {
 } from "./round-answers";
 import { askRound, proposeFinish } from "./tools";
 import { turnProblem } from "./turn-problem";
+
+// One connection for the app: it holds no state, and it adds the tree outline to each request.
+const connection = interviewConnection();
 
 // What the model is waiting for the user to do. Only one thing is pending at a time.
 export type PendingTurn =
@@ -106,7 +110,7 @@ export function useInterviewChat(
   const chat = useChat({
     threadId,
     initialMessages,
-    connection: fetchServerSentEvents("/api/chat"),
+    connection,
     byok,
     forwardedProps: { provider: DEFAULT_PROVIDER },
     tools,

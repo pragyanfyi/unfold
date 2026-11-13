@@ -144,6 +144,8 @@ The ADR fixes these rules as invariants. The full list of checks is implementati
 
 The server holds no state. The client sends the chat messages and a compact outline of the tree (id, label, answer, decision, parent, state, revisits) so the model can name earlier ids and see which questions are still `open` and which already have a revisit. The outline is rebuilt each turn from local data and is not logged (ADR 0003).
 
+Built in #51. The chat connection (`features/chat/connection.ts`) builds the outline from the messages of the request it is sending and puts it in `forwardedProps.outline`. It does not go through the hook's `forwardedProps` option, which reaches the client one render late. The route checks its shape and gives it to the model as a second system prompt, after the fixed one (`features/tree/outline.ts`). The outline leaves out `dependsOn`, and sends the idea only as the root's label, cut to 200 characters, because the full idea is the first message. A request without an outline is accepted, so a tab still running the previous version keeps working after a deploy.
+
 ### The report
 
 When the user confirms the end, the app builds a Markdown report from the derived tree with a fixed template, not by asking the model. It lists the idea, then each round with its questions, the recommendation (option A), the user's answer, the decision, and a marker where the user did not choose A. It has a section for any open questions and ends with the model's summary. Building it in code is deterministic, free and testable. The user can download it as a `.md` file.

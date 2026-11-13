@@ -182,6 +182,109 @@ describe("chat route: interview protocol", () => {
   });
 });
 
+describe("chat route: tree outline (ADR 0012)", () => {
+  // Unusual enough to be found anywhere it leaks.
+  const OUTLINE_SENTINEL = "OUTLINE-SENTINEL-picnic-decision";
+  const outline = [
+    {
+      id: "idea",
+      label: "A picnic planner",
+      answer: null,
+      decision: null,
+      parent: null,
+      state: "settled",
+      revisits: null,
+    },
+    {
+      id: "r1q1",
+      label: "Audience",
+      answer: "A. Families",
+      decision: OUTLINE_SENTINEL,
+      parent: "idea",
+      state: "settled",
+      revisits: null,
+    },
+  ];
+
+  async function systemPromptsFor(forwardedProps: Record<string, unknown>) {
+    const fake = fakeText();
+    let prompts: Array<unknown> = [];
+    fake.setResponses([
+      ({ request }) => {
+        prompts = request.systemPrompts ?? [];
+        return { text: "ok" };
+      },
+    ]);
+    const res = await handleChatRequest(post(body({ forwardedProps }), withKey), {
+      createAdapter: () => fake,
+    });
+    await res.text();
+    expect(res.status).toBe(200);
+    expect(fake.pendingResponses()).toBe(0);
+    return prompts;
+  }
+
+  it("gives the model the outline as a second system prompt, after the fixed one", async () => {
+    const prompts = await systemPromptsFor({ outline });
+    expect(prompts).toHaveLength(2);
+    expect(prompts[0]).toContain("You interview the user");
+    expect(prompts[1]).toContain('"id":"r1q1"');
+    expect(prompts[1]).toContain(OUTLINE_SENTINEL);
+  });
+
+  it("drops fields it does not know before they reach the model", async () => {
+    const prompts = await systemPromptsFor({
+      outline: [{ ...outline[0], extra: "SHOULD-NOT-PASS" }],
+    });
+    expect(JSON.stringify(prompts)).not.toContain("SHOULD-NOT-PASS");
+  });
+
+  it("works without an outline, for a tab still running the previous version", async () => {
+    expect(await systemPromptsFor({})).toHaveLength(1);
+  });
+
+  it("rejects an outline of the wrong shape, without echoing it", async () => {
+    for (const bad of [
+      "SHOULD-NOT-ECHO",
+      [{ id: "idea" }],
+      [{ ...outline[0], state: "SHOULD-NOT-ECHO" }],
+    ]) {
+      const createAdapter = vi.fn();
+      const res = await handleChatRequest(
+        post(body({ forwardedProps: { outline: bad } }), withKey),
+        {
+          createAdapter,
+        },
+      );
+      expect(res.status).toBe(400);
+      expect(await res.text()).not.toContain("SHOULD-NOT-ECHO");
+      expect(createAdapter).not.toHaveBeenCalled();
+    }
+  });
+
+  it("never writes the outline to logs, whatever the outcome", async () => {
+    const lines: string[] = [];
+    for (const method of ["log", "info", "warn", "error", "debug", "trace"] as const) {
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        lines.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+      });
+    }
+    for (const responses of [[{ text: "fine" }], [{ error: "boom" }]]) {
+      const fake = fakeText();
+      fake.setResponses(responses);
+      const res = await handleChatRequest(post(body({ forwardedProps: { outline } }), withKey), {
+        createAdapter: () => fake,
+      });
+      await res.text();
+      expect(fake.pendingResponses()).toBe(0);
+    }
+    const bad = [{ ...outline[1], state: "nope" }];
+    await handleChatRequest(post(body({ forwardedProps: { outline: bad } }), withKey));
+    expect(lines.length).toBeGreaterThan(0); // the capture is wired up, not silently empty
+    expect(lines.join("\n")).not.toContain(OUTLINE_SENTINEL);
+  });
+});
+
 describe("chat route: key-leak check (ADR 0003, item 6)", () => {
   function captureOutput() {
     const lines: string[] = [];
