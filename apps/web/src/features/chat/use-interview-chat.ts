@@ -2,6 +2,7 @@ import { fetchServerSentEvents, type UIMessage, useChat } from "@tanstack/ai-rea
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getByok } from "#/features/byok/key-store";
 import { savablePrefix } from "#/features/storage/savable";
+import { deriveTree } from "#/features/tree/derive-tree";
 import { DEFAULT_PROVIDER } from "./providers";
 import {
   type Answer,
@@ -12,6 +13,7 @@ import {
   type RoundInput,
 } from "./round-answers";
 import { askRound, proposeFinish } from "./tools";
+import { turnProblem } from "./turn-problem";
 
 // What the model is waiting for the user to do. Only one thing is pending at a time.
 export type PendingTurn =
@@ -187,8 +189,33 @@ export function useInterviewChat(
     else chat.retryInterrupts();
   }, [chat, hasAnswered]);
 
+  // Why the model's last turn broke the interview rules, if it did (ADR 0012, Validation).
+  const messages = chat.messages;
+  // A reply is complete when the library reported it as finished, or it came from storage,
+  // which holds only messages that no longer change (ADR 0013).
+  const restoredIds = useRef(new Set(initialMessages?.map((message) => message.id)));
+  const problem = useMemo(
+    () =>
+      turnProblem(
+        messages,
+        deriveTree(messages),
+        (id) => id === finishedId || restoredIds.current.has(id),
+      ),
+    [messages, finishedId],
+  );
+
   const resumable = restoredTail.current !== null;
-  return { ...chat, stop, retry, hasAnswered, resumable, pending, submitRound, submitFinish };
+  return {
+    ...chat,
+    stop,
+    retry,
+    hasAnswered,
+    resumable,
+    pending,
+    problem,
+    submitRound,
+    submitFinish,
+  };
 }
 
 // The answered tool call that ends the conversation, if the last message is such a call.

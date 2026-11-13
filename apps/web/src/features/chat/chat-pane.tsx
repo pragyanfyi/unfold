@@ -78,10 +78,14 @@ export function ChatPane({
         (part.output as FinishDecision | undefined)?.confirmed === true,
     ),
   );
+  // The model's last turn broke the interview rules (ADR 0012, Validation). Its questions are
+  // not shown: the tree has dropped them, so answering would go nowhere.
+  const problem = chat.error ? null : chat.problem;
   const stalled =
     !busy &&
     !chat.pending &&
     !chat.error &&
+    !problem &&
     !confirmed &&
     visible.length > 0 &&
     !endsInUnansweredCall;
@@ -94,6 +98,13 @@ export function ChatPane({
   const retry = () => {
     if (!hasKey) setKeyOpen(true);
     else chat.retry();
+  };
+  // A rejected round or proposal is still waiting for an answer it will never get. Stop that
+  // run before asking again.
+  const retryRejected = () => {
+    if (!hasKey) return setKeyOpen(true);
+    chat.stop();
+    chat.retry();
   };
 
   async function send(text: string) {
@@ -170,6 +181,20 @@ export function ChatPane({
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 pb-4">
         {chat.error && !busy ? (
           <TurnError message={chat.error.message} onRetry={retry} />
+        ) : problem && !chat.hasAnswered ? (
+          <TurnError
+            title="The reply broke the interview rules"
+            message={`It cannot be added to the tree (${problem}). Try again to ask the model once more.`}
+            onRetry={retryRejected}
+          />
+        ) : problem ? (
+          // After an answer there is nothing to retry (see use-interview-chat.ts).
+          <TurnError
+            title="The reply broke the interview rules"
+            message={`It cannot be added to the tree (${problem}), and this conversation cannot be resumed.`}
+            actionLabel="Start over"
+            onRetry={onStartOver ?? chat.clear}
+          />
         ) : cutOff || (stalled && !chat.hasAnswered) ? (
           <TurnError
             title="The reply stopped"
@@ -185,7 +210,7 @@ export function ChatPane({
             onRetry={onStartOver ?? chat.clear}
           />
         ) : null}
-        {chat.pending?.kind === "round" ? (
+        {problem ? null : chat.pending?.kind === "round" ? (
           <div className="rounded-3xl bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/5">
             <RoundForm
               key={chat.pending.toolCallId}
