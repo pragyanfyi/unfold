@@ -7,6 +7,7 @@ import {
 } from "@tanstack/ai";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { outlineSchema, renderOutline } from "#/features/tree/outline";
 import { DEFAULT_PROVIDER, isSupportedProvider, PROVIDERS, type ProviderId } from "./providers";
 import {
   LIBRARY_DEBUG_CATEGORIES,
@@ -133,6 +134,14 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
     return jsonError(400, "unsupported_provider", "That provider is not supported.");
   }
 
+  // The tree outline (ADR 0012). It is optional, so a tab still running the previous version
+  // keeps working after a deploy. Its size is bounded by MAX_BODY_BYTES. It is the user's
+  // conversation: it goes to the model and is never logged (ADR 0003).
+  const outline = outlineSchema.optional().safeParse(params.forwardedProps.outline);
+  if (!outline.success) {
+    return jsonError(400, "invalid_body", "The tree outline is not valid.");
+  }
+
   // `getByokKey` with a plain slug reads the header only. It never falls back to a
   // server-side environment key (ADR 0003, item 2).
   const key = getByokKey(request, requested)?.trim();
@@ -154,7 +163,8 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
       runId: params.runId,
       parentRunId: params.parentRunId,
       resume: params.resume,
-      systemPrompts: [SYSTEM_PROMPT],
+      // The fixed prompt stays first, so the part of the request that never changes leads.
+      systemPrompts: outline.data ? [SYSTEM_PROMPT, renderOutline(outline.data)] : [SYSTEM_PROMPT],
       tools: [...interviewTools],
       abortController,
       debug: { ...LIBRARY_DEBUG_CATEGORIES, logger: libraryLogger(log, [key]) },

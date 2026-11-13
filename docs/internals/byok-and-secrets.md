@@ -12,6 +12,7 @@ If you change anything that alters this, update ADR 0003 and `SECURITY.md` in th
 
 - Log only through `logSafe` (`features/chat/safe-log.ts`). It takes named primitive fields and masks key-shaped text. Biome plugins in `biome-plugins/` reject `console` calls and `.headers` passed to a log call here; do not disable them. They are lexical, so review is still needed.
 - Do not log, return or attach to an error anything from a provider error or a request header. Error responses are fixed strings.
+- The same goes for the user's conversation: messages and the tree outline (`forwardedProps.outline`) go to the model and never to a log or an error response. `chat-handler.test.ts` checks the outline with a sentinel.
 - The AI library logs caught errors itself. The chat route replaces that logger (`libraryLogger`); any new `chat()` call on the server must pass the same `debug` option.
 - Read the key with `getByokKey(request, "<slug>")` (header only). Never pass a `ByokProvider` descriptor that has `env` names to the server helpers: that turns on the environment fallback.
 - Changing the CSP (`features/security/csp.ts`) needs the key risk in mind: do not add `unsafe-inline` or `unsafe-eval` to `script-src`, or a host to `connect-src`.
