@@ -1,7 +1,7 @@
 import type { UIMessage } from "@tanstack/ai-react";
 import { describe, expect, it } from "vitest";
 import { deriveTree } from "#/features/tree/derive-tree";
-import { turnProblem } from "./turn-problem";
+import { describeProblem, NO_TOOL_CALL, turnProblem } from "./turn-problem";
 
 const idea: UIMessage = {
   id: "u1",
@@ -64,7 +64,7 @@ describe("turnProblem", () => {
   });
 
   it("rejects a complete reply with no tool call, but not one still streaming", () => {
-    expect(check([idea, text("a1")], ["a1"])).toBe("no tool call");
+    expect(check([idea, text("a1")], ["a1"])).toBe(NO_TOOL_CALL);
     expect(check([idea, text("a1")])).toBeNull();
   });
 
@@ -75,7 +75,7 @@ describe("turnProblem", () => {
     expect(check([...upToProposal, confirmed, text("a3")], ["a3"])).toBeNull();
     // "Keep going" returns to the interview, so the next reply must ask again.
     const keptGoing = call("a2", "propose_finish", finish, { confirmed: false, text: "More" });
-    expect(check([...upToProposal, keptGoing, text("a3")], ["a3"])).toBe("no tool call");
+    expect(check([...upToProposal, keptGoing, text("a3")], ["a3"])).toBe(NO_TOOL_CALL);
   });
 
   it("looks only at the last turn, past the empty message a failed run leaves behind", () => {
@@ -83,5 +83,12 @@ describe("turnProblem", () => {
     const empty: UIMessage = { id: "a2", role: "assistant", parts: [] };
     expect(check([idea, bad, empty])).toMatch(/unknown id/);
     expect(check([idea, bad, call("a3", "ask_round", round())])).toBeNull();
+  });
+
+  it("describes a problem without ids or field names", () => {
+    expect(describeProblem(NO_TOOL_CALL)).toMatch(/without asking a question/);
+    const text = describeProblem("question 1 names an unknown id: r9q9");
+    expect(text).toMatch(/do not fit/);
+    expect(text).not.toContain("r9q9");
   });
 });

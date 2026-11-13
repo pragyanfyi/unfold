@@ -255,7 +255,7 @@ describe("ChatPane: stop", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
 
     expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
-    expect(screen.getByText(/no tool call/)).toBeTruthy();
+    expect(screen.getByText(/replied without asking a question/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("Asked 1 question")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
@@ -463,7 +463,7 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
     await sendIdea();
 
     expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
-    expect(screen.getByText(/names an unknown id: r9q9/)).toBeTruthy();
+    expect(screen.getByText(/do not fit the decisions made so far/)).toBeTruthy();
     expect(screen.queryByText("Who is it for?")).toBeNull();
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
 
@@ -474,7 +474,7 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
   });
 
   it("rejects a turn with two tool calls", async () => {
-    stubNetwork([
+    const { fake } = stubNetwork([
       {
         text: "Two at once.",
         toolCalls: [
@@ -485,16 +485,18 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
     ]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
     await sendIdea();
-    expect(await screen.findByText(/more than one tool call/)).toBeTruthy();
+    expect(await screen.findByText(/do not fit the decisions made so far/)).toBeTruthy();
     expect(screen.queryByText("Who is it for?")).toBeNull();
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("rejects a first reply that ends without a tool call", async () => {
-    stubNetwork([{ text: "Just words." }]);
+    const { fake } = stubNetwork([{ text: "Just words." }]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
     await sendIdea();
-    expect(await screen.findByText(/no tool call/)).toBeTruthy();
+    expect(await screen.findByText(/replied without asking a question/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("after an answer, offers only Start over and sends nothing more", async () => {
@@ -509,7 +511,7 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
     fireEvent.click(await screen.findByRole("radio", { name: /A\s*Families/ }));
     fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
 
-    expect(await screen.findByText(/settled must list exactly: r1q1/)).toBeTruthy();
+    expect(await screen.findByText(/do not fit the decisions made so far/)).toBeTruthy();
     expect(screen.queryByRole("form", { name: /questions for this round/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
@@ -531,6 +533,6 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
       />,
     );
     expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
-    expect(screen.getByText(/no tool call/)).toBeTruthy();
+    expect(screen.getByText(/replied without asking a question/)).toBeTruthy();
   });
 });

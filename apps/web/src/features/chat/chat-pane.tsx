@@ -23,6 +23,7 @@ import type { FinishDecision } from "./round-answers";
 import { RoundForm } from "./round-form";
 import { proposeFinish } from "./tools";
 import { TurnError } from "./turn-error";
+import { describeProblem } from "./turn-problem";
 import { useInterviewChat } from "./use-interview-chat";
 
 // The interview chat (#27). It is one pane of two (ADR 0012) and knows nothing about the
@@ -184,14 +185,14 @@ export function ChatPane({
         ) : problem && !chat.hasAnswered ? (
           <TurnError
             title="The reply broke the interview rules"
-            message={`It cannot be added to the tree (${problem}). Try again to ask the model once more.`}
+            message={`${describeProblem(problem)} Try again to ask it once more.`}
             onRetry={retryRejected}
           />
         ) : problem ? (
           // After an answer there is nothing to retry (see use-interview-chat.ts).
           <TurnError
             title="The reply broke the interview rules"
-            message={`It cannot be added to the tree (${problem}), and this conversation cannot be resumed.`}
+            message={`${describeProblem(problem)} This conversation cannot be resumed.`}
             actionLabel="Start over"
             onRetry={onStartOver ?? chat.clear}
           />
