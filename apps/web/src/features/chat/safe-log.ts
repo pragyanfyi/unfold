@@ -32,8 +32,14 @@ export const logSafe: SafeLogger = (event, fields = {}, secrets = []) => {
 
 // @tanstack/ai logs caught errors itself, by default with `console.error` and the whole error
 // object (stack, and whatever the provider SDK attached). That would bypass logSafe, so the
-// chat route passes this logger as `debug.logger` and turns every other category off. It
-// keeps only the error message and drops `meta`, which can hold request or provider objects.
+// chat route passes this logger as `debug.logger` and turns every other category off.
+//
+// The library calls `error(message, meta)`. `message` is a label the library wrote itself
+// ("anthropic.chatStream fatal"); the caught error, with whatever the provider said, is in
+// `meta`. Only the label is kept. `meta` is dropped whole: a provider error can quote the
+// user's conversation, and the SDK attaches request and response objects to it. Do not add
+// fields from `meta` here. The label is not a promise of the library, so it is still masked
+// and cut, and a test in chat-handler.test.ts fails if error text ever shows up in it (#54).
 export function libraryLogger(log: SafeLogger, secrets: ReadonlyArray<string>) {
   return {
     debug: () => {},
