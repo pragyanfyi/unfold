@@ -19,6 +19,9 @@ async function sendIdea(page: Page, idea: string) {
   await page.getByRole("button", { name: "Send" }).click();
 }
 
+// The canvas is asserted without motion (ADR 0014).
+test.use({ reducedMotion: "reduce" });
+
 test.beforeEach(async ({ page }) => {
   await addPasskeyAuthenticator(page);
   await page.goto("/");
@@ -50,12 +53,26 @@ test("asks for a key when sending without one, and keeps the idea", async ({ pag
   await expect(page.getByRole("textbox", { name: "Your idea" })).toHaveValue(idea);
 });
 
-test("runs an interview: idea, round, answers, next round, finish", async ({ page }) => {
+test("runs an interview: idea, round, answers, next round, finish", async ({ page }, testInfo) => {
   await saveKey(page);
   await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
 
   const round = page.getByRole("form", { name: "Questions for this round" });
   await expect(round.getByText("Question 1 of 2")).toBeVisible();
+
+  // The canvas draws the same tree (ADR 0014): the idea, then the round's questions.
+  const canvas = page.getByRole("region", { name: "Decision tree" });
+  const node = (id: string) => canvas.getByTestId(`tree-node-${id}`);
+  await expect(node("idea")).toContainText("E2E-IDEA-JOURNEY a tool library");
+  await expect(node("r1q1")).toHaveAttribute("data-state", "pending");
+  await expect(node("r1q1")).toContainText("Audience");
+  await expect(node("r1q2")).toHaveAttribute("data-state", "pending");
+  await expect(canvas.getByTestId("tree-edge-idea-r1q1")).toHaveAttribute("data-kind", "parent");
+  await expect(canvas.getByTestId(/^tree-node-/)).toHaveCount(3);
+  // A zoom button sets the user's own view: the next round must not fit the tree over it.
+  await canvas.getByRole("button", { name: "Zoom Out" }).click();
+  const zoomed = await node("idea").boundingBox();
+
   await expect(round.getByText("Who is it for?")).toBeVisible();
   // Option A is the recommendation.
   await expect(round.getByText("(Recommended)")).toBeVisible();
@@ -73,6 +90,20 @@ test("runs an interview: idea, round, answers, next round, finish", async ({ pag
   // The answers resume the run; the second round arrives as a new form.
   await expect(page.getByText("How will it make money?")).toBeVisible();
   await expect(page.getByText("Question 1 of 1")).toBeVisible();
+  // The model's decisions fill in the first round, and the new question hangs off one of them.
+  await expect(node("r1q1")).toHaveAttribute("data-state", "settled");
+  await expect(node("r1q1")).toContainText("Families");
+  await expect(node("r2q1")).toHaveAttribute("data-state", "pending");
+  await expect(canvas.getByTestId("tree-edge-r1q1-r2q1")).toHaveAttribute("data-kind", "parent");
+  await expect(canvas.getByTestId(/^tree-node-/)).toHaveCount(4);
+  await expect(node("r2q1")).toBeInViewport();
+  expect(await node("idea").boundingBox()).toEqual(zoomed);
+
+  // Selecting a node marks it, and the background clears it.
+  await node("r1q2").click();
+  await expect(canvas.locator(".react-flow__node.selected")).toHaveCount(1);
+  await expect(canvas.locator(".react-flow__node.selected")).toContainText("Discovery");
+
   await page.getByRole("radio", { name: /A\s*Subscription/ }).click();
   await page.getByRole("textbox", { name: /Your own answer or a note/ }).fill("E2E-NOTE-ROUND-2");
   await page.getByRole("button", { name: "Submit answers" }).click();
@@ -86,6 +117,10 @@ test("runs an interview: idea, round, answers, next round, finish", async ({ pag
   await expect(page.getByText("Glad we reached a shared understanding.")).toBeVisible();
   await expect(page.getByText("Is this a shared understanding?")).toBeHidden();
   await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(node("r2q1")).toHaveAttribute("data-state", "settled");
+  await expect(node("r2q1")).toContainText("Subscription");
+  // For a person to look at. Nothing is compared with it.
+  await page.screenshot({ path: testInfo.outputPath("journey-end.png") });
 });
 
 test("shows a provider error and offers to try again", async ({ page }) => {

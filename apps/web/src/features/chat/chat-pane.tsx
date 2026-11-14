@@ -1,6 +1,6 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
 import { LoaderCircleIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Message, MessageContent } from "#/components/ui/message";
 import {
@@ -14,6 +14,7 @@ import {
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "#/components/ui/trace";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
+import type { Tree } from "#/features/tree/derive-tree";
 import { ChatMessage } from "./chat-message";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
@@ -27,13 +28,15 @@ import { describeProblem } from "./turn-problem";
 import { useInterviewChat } from "./use-interview-chat";
 
 // The interview chat (#27). It is one pane of two (ADR 0012) and knows nothing about the
-// canvas. Storage (#28) plugs in through `initialMessages` and `onFinish`.
+// canvas: it hands the tree it derives to whoever asks through `onTree`. Storage (#28) plugs
+// in through `initialMessages` and `onFinish`.
 export function ChatPane({
   threadId,
   initialMessages,
   onFinish,
   onSavable,
   onStartOver,
+  onTree,
   byok = getByok(),
 }: {
   threadId: string;
@@ -43,9 +46,13 @@ export function ChatPane({
   onSavable?: (messages: Array<UIMessage>) => void;
   /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */
   onStartOver?: () => void;
+  /** Called with the decision tree whenever its content changes (ADR 0012). */
+  onTree?: (tree: Tree) => void;
   byok?: ReturnType<typeof getByok>;
 }) {
   const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
+  const tree = chat.tree;
+  useEffect(() => onTree?.(tree), [tree, onTree]);
   const snapshot = useByok(byok);
   const keyState = snapshot.status[DEFAULT_PROVIDER]?.state;
   const hasKey = keyState === "set" || keyState === "locked";

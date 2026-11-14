@@ -8,7 +8,8 @@ import { hierarchy, tree } from "d3-hierarchy";
 // same size, so the layout needs no measuring by the browser and can be tested without one.
 
 export const NODE_WIDTH = 240;
-export const NODE_HEIGHT = 96;
+// Room for a state line, two lines of label and two lines of decision.
+export const NODE_HEIGHT = 120;
 /** Space between two nodes in the same column. */
 export const SIBLING_GAP = 24;
 /** Space between two columns. */

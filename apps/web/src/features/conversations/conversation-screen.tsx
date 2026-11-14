@@ -6,12 +6,13 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "#/components/ui/sidebar";
 import { Skeleton } from "#/components/ui/skeleton";
-import { CanvasPlaceholder } from "#/features/canvas/canvas-placeholder";
+import { CanvasPane } from "#/features/canvas/canvas-pane";
 import { ChatPane } from "#/features/chat/chat-pane";
 import { onChangeElsewhere } from "#/features/storage/channel";
 import { conversationKeys, conversationQuery } from "#/features/storage/queries";
 import type { LoadedConversation } from "#/features/storage/types";
 import { isUuid, uuidv7 } from "#/features/storage/uuid";
+import type { Tree } from "#/features/tree/derive-tree";
 import { AppSidebar } from "./app-sidebar";
 import { SaveNotice } from "./save-notice";
 import { useConversationSaver } from "./use-conversation-saver";
@@ -141,6 +142,10 @@ function Conversation({
     stored: loaded?.messages.length ?? 0,
     onFirstSave,
   });
+  // The chat derives the tree and the canvas draws it. The selected node lives here, outside
+  // React Flow, so the chat can read it later (#31).
+  const [tree, setTree] = useState<Tree | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SaveNotice status={saver.status} onRetry={saver.retry} onNew={onNew} />
@@ -152,9 +157,10 @@ function Conversation({
               initialMessages={loaded?.messages}
               onSavable={saver.onSavable}
               onStartOver={onNew}
+              onTree={setTree}
             />
           }
-          canvas={<CanvasPlaceholder />}
+          canvas={<CanvasPane tree={tree} selectedId={selectedId} onSelect={setSelectedId} />}
         />
       </div>
     </div>
