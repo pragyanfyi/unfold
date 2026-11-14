@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/pragyanfyi/unfold/compare/v0.3.0...v0.4.0) (2026-11-14)
+
+
+### Features
+
+* **canvas:** derive the decision tree from the chat messages ([#50](https://github.com/pragyanfyi/unfold/issues/50)) ([dde44e9](https://github.com/pragyanfyi/unfold/commit/dde44e94f5f8e386fd357ef61040a85c69079172))
+* **canvas:** lay out the decision tree ([#57](https://github.com/pragyanfyi/unfold/issues/57)) ([6dc2373](https://github.com/pragyanfyi/unfold/commit/6dc2373b8b1f0e70a49287d21d8447937e30b3d5))
+* **canvas:** render the decision tree ([#58](https://github.com/pragyanfyi/unfold/issues/58)) ([e65978a](https://github.com/pragyanfyi/unfold/commit/e65978a03cb23bcd04190277e80ce6670a1cee7d))
+* **chat:** reject turns that break the tree rules ([#55](https://github.com/pragyanfyi/unfold/issues/55)) ([c71144d](https://github.com/pragyanfyi/unfold/commit/c71144d28acb8649b6c3d254535147c2e88c8f53))
+* **chat:** send the tree outline with every request ([#53](https://github.com/pragyanfyi/unfold/issues/53)) ([0a71ec7](https://github.com/pragyanfyi/unfold/commit/0a71ec749bc4abbc1d6f2da097fb5d4e97678026))
+
 ## [0.3.0](https://github.com/pragyanfyi/unfold/compare/v0.2.0...v0.3.0) (2026-11-11)
 
 
