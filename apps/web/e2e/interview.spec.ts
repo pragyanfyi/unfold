@@ -178,6 +178,7 @@ test.describe("with motion", () => {
     expect(seen.some((opacity) => Number(opacity) < 1)).toBe(true);
     expect(seen.at(-1)).toBe("1");
   });
+
   test("the fit button fits where the tree ends, even during the move", async ({ page }) => {
     await saveKey(page);
     await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
@@ -193,11 +194,32 @@ test.describe("with motion", () => {
     await round
       .getByRole("textbox", { name: /Your own answer or a note/ })
       .fill("E2E-NOTE-ROUND-1");
+
+    // Click Fit view in the page, one frame after the second round's node is drawn, and note
+    // how visible that node was then. Below 1 proves the click came during the move, however
+    // fast the test itself runs.
+    await canvas.evaluate((element) => {
+      const observer = new MutationObserver(() => {
+        const added = element.querySelector<HTMLElement>('.react-flow__node[data-id="r2q1"]');
+        if (!added) return;
+        observer.disconnect();
+        requestAnimationFrame(() => {
+          const button = element.querySelector<HTMLButtonElement>(".react-flow__controls-fitview");
+          Object.assign(window, {
+            opacityAtClick: button ? added.style.opacity || "1" : "no button",
+          });
+          button?.click();
+        });
+      });
+      observer.observe(element, { subtree: true, childList: true });
+    });
     await round.getByRole("button", { name: "Submit answers" }).click();
 
-    // Clicked as soon as the new node is drawn, while the nodes are still on their way.
-    await canvas.locator('.react-flow__node[data-id="r2q1"]').waitFor({ state: "attached" });
-    await canvas.getByRole("button", { name: "Fit view" }).click();
+    const opacityAtClick = () =>
+      page.evaluate(() => (window as unknown as { opacityAtClick?: string }).opacityAtClick);
+    await expect.poll(opacityAtClick).toBeDefined();
+    expect(Number(await opacityAtClick())).toBeLessThan(1);
+    await expect(canvas.getByRole("button", { name: "Fit view" })).toBeVisible();
     // Not 1: after this fit a node can measure 0.9999996 from sub-pixel rounding, while it sits
     // well inside the pane. A node the fit missed is far below 0.99.
     for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
