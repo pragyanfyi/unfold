@@ -133,3 +133,99 @@ test("shows a provider error and offers to try again", async ({ page }) => {
   // The key must never reach the page, even inside an error message.
   await expect(page.locator("body")).not.toContainText(FAKE_KEY);
 });
+
+test.describe("with motion", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("grows the tree with a move, and the view follows to where it ends", async ({ page }) => {
+    await saveKey(page);
+    await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
+
+    const round = page.getByRole("form", { name: "Questions for this round" });
+    const canvas = page.getByRole("region", { name: "Decision tree" });
+    const node = (id: string) => canvas.getByTestId(`tree-node-${id}`);
+    await expect(node("r1q2")).toBeInViewport({ ratio: 1 });
+
+    // Every opacity the second round's node is given. Each frame of the move writes one, so
+    // this does not depend on how fast the frames come.
+    await canvas.evaluate((element) => {
+      const seen: Array<string> = [];
+      Object.assign(window, { seenOpacity: seen });
+      new MutationObserver(() => {
+        const added = element.querySelector<HTMLElement>('.react-flow__node[data-id="r2q1"]');
+        if (added) seen.push(added.style.opacity || "1");
+      }).observe(element, { subtree: true, childList: true, attributeFilter: ["style"] });
+    });
+
+    await round.getByRole("radio", { name: /A\s*Families/ }).click();
+    await round.getByRole("button", { name: "Next" }).click();
+    await round.getByRole("radio", { name: /A\s*Word of mouth/ }).click();
+    await round
+      .getByRole("textbox", { name: /Your own answer or a note/ })
+      .fill("E2E-NOTE-ROUND-1");
+    await round.getByRole("button", { name: "Submit answers" }).click();
+
+    // The move ends with every node whole in the view, and the new one fully visible.
+    for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
+      await expect(node(id)).toBeInViewport({ ratio: 1 });
+    }
+    const added = canvas.locator('.react-flow__node[data-id="r2q1"]');
+    await expect(added).toHaveCSS("opacity", "1");
+    const seen = await page.evaluate(
+      () => (window as unknown as { seenOpacity: Array<string> }).seenOpacity,
+    );
+    // It faded in: it was drawn at least once on the way.
+    expect(seen.some((opacity) => Number(opacity) < 1)).toBe(true);
+    expect(seen.at(-1)).toBe("1");
+  });
+
+  test("the fit button fits where the tree ends, even during the move", async ({ page }) => {
+    await saveKey(page);
+    await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
+
+    const round = page.getByRole("form", { name: "Questions for this round" });
+    const canvas = page.getByRole("region", { name: "Decision tree" });
+    const node = (id: string) => canvas.getByTestId(`tree-node-${id}`);
+    await expect(node("r1q2")).toBeInViewport({ ratio: 1 });
+
+    await round.getByRole("radio", { name: /A\s*Families/ }).click();
+    await round.getByRole("button", { name: "Next" }).click();
+    await round.getByRole("radio", { name: /A\s*Word of mouth/ }).click();
+    await round
+      .getByRole("textbox", { name: /Your own answer or a note/ })
+      .fill("E2E-NOTE-ROUND-1");
+
+    // Click Fit view in the page, one frame after the second round's node is drawn, and note
+    // how visible that node was then. Below 1 proves the click came during the move, however
+    // fast the test itself runs.
+    await canvas.evaluate((element) => {
+      const observer = new MutationObserver(() => {
+        const added = element.querySelector<HTMLElement>('.react-flow__node[data-id="r2q1"]');
+        if (!added) return;
+        observer.disconnect();
+        requestAnimationFrame(() => {
+          const button = element.querySelector<HTMLButtonElement>(".react-flow__controls-fitview");
+          Object.assign(window, {
+            opacityAtClick: button ? added.style.opacity || "1" : "no button",
+          });
+          button?.click();
+        });
+      });
+      observer.observe(element, { subtree: true, childList: true });
+    });
+    await round.getByRole("button", { name: "Submit answers" }).click();
+
+    const opacityAtClick = () =>
+      page.evaluate(() => (window as unknown as { opacityAtClick?: string }).opacityAtClick);
+    await expect.poll(opacityAtClick).toBeDefined();
+    expect(Number(await opacityAtClick())).toBeLessThan(1);
+    await expect(canvas.getByRole("button", { name: "Fit view" })).toBeVisible();
+    // The move has ended once the new node is fully visible. Only then is the fit final.
+    await expect(canvas.locator('.react-flow__node[data-id="r2q1"]')).toHaveCSS("opacity", "1");
+    // Not 1: after this fit a node can measure 0.9999996 from sub-pixel rounding, while it sits
+    // well inside the pane. A node the fit missed is far below 0.99.
+    for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
+      await expect(node(id)).toBeInViewport({ ratio: 0.99 });
+    }
+  });
+});
