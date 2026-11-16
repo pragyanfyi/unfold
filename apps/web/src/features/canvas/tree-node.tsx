@@ -62,4 +62,15 @@ function TreeNodeCard({ id, data, selected }: NodeProps<TreeFlowNode>) {
   );
 }
 
-export const TreeNode = memo(TreeNodeCard);
+// React Flow also passes the node's position, which changes on every frame of a move. The
+// card reads none of it, so only what it reads decides whether it renders again.
+export function sameCard(
+  previous: Pick<NodeProps<TreeFlowNode>, "id" | "data" | "selected">,
+  next: Pick<NodeProps<TreeFlowNode>, "id" | "data" | "selected">,
+): boolean {
+  return (
+    previous.id === next.id && previous.data === next.data && previous.selected === next.selected
+  );
+}
+
+export const TreeNode = memo(TreeNodeCard, sameCard);

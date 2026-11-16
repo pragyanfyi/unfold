@@ -178,4 +178,30 @@ test.describe("with motion", () => {
     expect(seen.some((opacity) => Number(opacity) < 1)).toBe(true);
     expect(seen.at(-1)).toBe("1");
   });
+  test("the fit button fits where the tree ends, even during the move", async ({ page }) => {
+    await saveKey(page);
+    await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
+
+    const round = page.getByRole("form", { name: "Questions for this round" });
+    const canvas = page.getByRole("region", { name: "Decision tree" });
+    const node = (id: string) => canvas.getByTestId(`tree-node-${id}`);
+    await expect(node("r1q2")).toBeInViewport({ ratio: 1 });
+
+    await round.getByRole("radio", { name: /A\s*Families/ }).click();
+    await round.getByRole("button", { name: "Next" }).click();
+    await round.getByRole("radio", { name: /A\s*Word of mouth/ }).click();
+    await round
+      .getByRole("textbox", { name: /Your own answer or a note/ })
+      .fill("E2E-NOTE-ROUND-1");
+    await round.getByRole("button", { name: "Submit answers" }).click();
+
+    // Clicked as soon as the new node is drawn, while the nodes are still on their way.
+    await canvas.locator('.react-flow__node[data-id="r2q1"]').waitFor({ state: "attached" });
+    await canvas.getByRole("button", { name: "Fit view" }).click();
+    // Not 1: after this fit a node can measure 0.9999996 from sub-pixel rounding, while it sits
+    // well inside the pane. A node the fit missed is far below 0.99.
+    for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
+      await expect(node(id)).toBeInViewport({ ratio: 0.99 });
+    }
+  });
 });

@@ -1,4 +1,5 @@
 import {
+  ControlButton,
   Controls,
   type EdgeTypes,
   getViewportForBounds,
@@ -41,6 +42,15 @@ function boundsOf(positions: ReadonlyMap<string, Position>) {
   };
 }
 
+// React Flow's own fit icon (MIT), which it does not export.
+function FitViewIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 30" aria-hidden>
+      <path d="M3.692 4.63c0-.53.4-.938.939-.938h5.215V0H4.708C2.13 0 0 2.054 0 4.63v5.216h3.692V4.631zM27.354 0h-5.2v3.692h5.17c.53 0 .984.4.984.939v5.215H32V4.631A4.624 4.624 0 0027.354 0zm.954 24.83c0 .532-.4.94-.939.94h-5.215v3.768h5.215c2.577 0 4.631-2.13 4.631-4.707v-5.139h-3.692v5.139zm-23.677.94c-.531 0-.939-.4-.939-.94v-5.138H0v5.139c0 2.577 2.13 4.707 4.708 4.707h5.138V25.77H4.631z" />
+    </svg>
+  );
+}
+
 export type TreeCanvasProps = {
   tree: Tree;
   selectedId: string | null;
@@ -64,7 +74,8 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
   const positions = useMemo(() => layoutTree(layoutNodes), [layoutNodes]);
   const flow = useMemo(() => toFlow(tree, positions, selectedId), [tree, positions, selectedId]);
   // While the tree grows, each node is drawn on its way to its place. Only the position and
-  // the opacity change per frame: `data` keeps its identity, so no node renders again.
+  // the opacity change per frame: `data` keeps its identity, so no card renders again
+  // (`sameCard`).
   const frames = useAnimatedPositions(layoutNodes, positions);
   const nodes = useMemo(
     () =>
@@ -120,9 +131,12 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
   const unfollow = useCallback(() => {
     following.current = false;
   }, []);
+  // Our own fit button: React Flow's queues its fit for the next change of nodes, which during
+  // a move is the next frame, so it would fit the nodes halfway to their place.
   const follow = useCallback(() => {
     following.current = true;
-  }, []);
+    fitTree(0);
+  }, [fitTree]);
 
   // A hidden pane (the other tab on a small screen) has no size, so a fit made there is lost.
   // Fit when the pane gets a size, and when that size changes.
@@ -175,11 +189,19 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
       >
         <Controls
           showInteractive={false}
-          fitViewOptions={FIT}
-          onFitView={follow}
+          showFitView={false}
           onZoomIn={unfollow}
           onZoomOut={unfollow}
-        />
+        >
+          <ControlButton
+            onClick={follow}
+            className="react-flow__controls-fitview"
+            title="Fit view"
+            aria-label="Fit view"
+          >
+            <FitViewIcon />
+          </ControlButton>
+        </Controls>
       </ReactFlow>
     </div>
   );
