@@ -220,6 +220,8 @@ test.describe("with motion", () => {
     await expect.poll(opacityAtClick).toBeDefined();
     expect(Number(await opacityAtClick())).toBeLessThan(1);
     await expect(canvas.getByRole("button", { name: "Fit view" })).toBeVisible();
+    // The move has ended once the new node is fully visible. Only then is the fit final.
+    await expect(canvas.locator('.react-flow__node[data-id="r2q1"]')).toHaveCSS("opacity", "1");
     // Not 1: after this fit a node can measure 0.9999996 from sub-pixel rounding, while it sits
     // well inside the pane. A node the fit missed is far below 0.99.
     for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
