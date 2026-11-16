@@ -616,7 +616,9 @@ describe("ChatPane: linked to the canvas (#31)", () => {
   });
 
   it("selects the question on screen, and shows answers on the tree before they are sent", async () => {
-    stubNetwork([{ text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] }]);
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] },
+    ]);
     const onSelect = vi.fn();
     const onTree = vi.fn();
     render(
@@ -636,15 +638,19 @@ describe("ChatPane: linked to the canvas (#31)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(onSelect).toHaveBeenLastCalledWith("r1q2");
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("moves the questionnaire to a question of the round picked on the canvas", async () => {
-    stubNetwork([{ text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] }]);
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] },
+    ]);
     const byok = await byokWithKey(true);
     const { rerender } = render(<ChatPane threadId="t1" byok={byok} />);
     await sendIdea();
     expect(await screen.findByText("Question 1 of 2")).toBeTruthy();
     rerender(<ChatPane threadId="t1" byok={byok} selectedId="r1q2" />);
     expect(screen.getByText("Question 2 of 2")).toBeTruthy();
+    expect(fake.pendingResponses()).toBe(0);
   });
 });

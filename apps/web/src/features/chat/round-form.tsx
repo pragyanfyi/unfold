@@ -34,12 +34,14 @@ export function RoundForm({
 }) {
   const formId = useId();
   const [drafts, setDrafts] = useState<Array<Answer>>(() => emptyAnswers(questions));
-  const [step, setStep] = useState(0);
+  const valid = (index: number | null): index is number =>
+    index !== null && index >= 0 && index < questions.length;
+  const [step, setStep] = useState(() => (valid(showIndex) ? showIndex : 0));
   // Move only when the pick changes, so Back and Next still work while a node stays selected.
   const [shown, setShown] = useState(showIndex);
   if (showIndex !== shown) {
     setShown(showIndex);
-    if (showIndex !== null && showIndex >= 0 && showIndex < questions.length) setStep(showIndex);
+    if (valid(showIndex)) setStep(showIndex);
   }
 
   const stepChange = useRef(onStepChange);

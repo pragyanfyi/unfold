@@ -116,6 +116,20 @@ describe("RoundForm", () => {
     expect(onStepChange).toHaveBeenLastCalledWith(1);
   });
 
+  it("starts at the question picked outside the form, and reports it", () => {
+    const onStepChange = vi.fn();
+    render(
+      <RoundForm
+        questions={questions}
+        onSubmit={() => {}}
+        showIndex={1}
+        onStepChange={onStepChange}
+      />,
+    );
+    expect(screen.getByText("Question 2 of 2")).toBeTruthy();
+    expect(onStepChange.mock.calls).toEqual([[1]]);
+  });
+
   it("moves to the question picked outside the form, and keeps Back and Next working", () => {
     const { rerender } = render(<RoundForm questions={questions} onSubmit={() => {}} />);
     rerender(<RoundForm questions={questions} onSubmit={() => {}} showIndex={1} />);
