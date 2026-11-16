@@ -5,12 +5,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 // Below that they become tabs. There is one DOM tree for both layouts, and an inactive tab is
 // hidden, not unmounted, so a streaming reply and the canvas state survive switching tabs or
 // resizing the window.
-export function TwoPane({ chat, canvas }: { chat: ReactNode; canvas: ReactNode }) {
-  const [tab, setTab] = useState("chat");
+//
+// The open tab can be controlled with `tab` and `onTabChange`, so selecting a node on the
+// canvas can show its turn in the chat (#31).
+export type PaneTab = "chat" | "canvas";
+
+export function TwoPane({
+  chat,
+  canvas,
+  tab,
+  onTabChange,
+}: {
+  chat: ReactNode;
+  canvas: ReactNode;
+  tab?: PaneTab;
+  onTabChange?: (tab: PaneTab) => void;
+}) {
+  const [ownTab, setOwnTab] = useState<PaneTab>("chat");
   return (
     <Tabs
-      value={tab}
-      onValueChange={setTab}
+      value={tab ?? ownTab}
+      onValueChange={(value) => {
+        setOwnTab(value as PaneTab);
+        onTabChange?.(value as PaneTab);
+      }}
       className="h-full min-h-0 gap-0 md:data-horizontal:flex-row"
     >
       <TabsList className="m-2 self-center md:hidden">

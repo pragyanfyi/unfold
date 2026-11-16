@@ -41,4 +41,22 @@ describe("TwoPane", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Chat" }));
     expect(screen.getByRole("button", { name: "count 1" })).toBeTruthy();
   });
+
+  it("can be switched from outside, and reports the user's switches", () => {
+    const changes: Array<string> = [];
+    const { rerender } = render(
+      <TwoPane
+        tab="canvas"
+        onTabChange={(tab) => changes.push(tab)}
+        chat={<p>chat pane</p>}
+        canvas={<p>canvas pane</p>}
+      />,
+    );
+    expectSelected("Canvas", "canvas pane");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Chat" }));
+    // Radix reports it on mouse down and again on focus.
+    expect(new Set(changes)).toEqual(new Set(["chat"]));
+    rerender(<TwoPane tab="chat" chat={<p>chat pane</p>} canvas={<p>canvas pane</p>} />);
+    expectSelected("Chat", "chat pane");
+  });
 });

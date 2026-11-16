@@ -94,4 +94,38 @@ describe("RoundForm", () => {
     fireEvent.submit(screen.getByRole("form", { name: /questions for this round/i }));
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("reports the question on screen and the answers so far, for the canvas (#31)", () => {
+    const onStepChange = vi.fn();
+    const onDraftsChange = vi.fn();
+    render(
+      <RoundForm
+        questions={questions}
+        onSubmit={() => {}}
+        onStepChange={onStepChange}
+        onDraftsChange={onDraftsChange}
+      />,
+    );
+    expect(onStepChange).toHaveBeenLastCalledWith(0);
+    fireEvent.click(screen.getByRole("radio", { name: /B\s*Friends/ }));
+    expect(onDraftsChange).toHaveBeenLastCalledWith([
+      { optionId: "B", text: null },
+      { optionId: null, text: null },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(onStepChange).toHaveBeenLastCalledWith(1);
+  });
+
+  it("moves to the question picked outside the form, and keeps Back and Next working", () => {
+    const { rerender } = render(<RoundForm questions={questions} onSubmit={() => {}} />);
+    rerender(<RoundForm questions={questions} onSubmit={() => {}} showIndex={1} />);
+    expect(screen.getByText("Question 2 of 2")).toBeTruthy();
+    // The pick stays the same, and Back still moves.
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    rerender(<RoundForm questions={questions} onSubmit={() => {}} showIndex={1} />);
+    expect(screen.getByText("Question 1 of 2")).toBeTruthy();
+    // A pick outside the round moves nothing.
+    rerender(<RoundForm questions={questions} onSubmit={() => {}} showIndex={-1} />);
+    expect(screen.getByText("Question 1 of 2")).toBeTruthy();
+  });
 });

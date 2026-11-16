@@ -103,14 +103,14 @@ The viewport follows growth: after nodes are added, the canvas fits the whole tr
 
 ### Left to later issues
 
-- Clicking a node scrolls the chat, and live growth while answering: #31.
+- Clicking a node scrolls the chat, and live growth while answering: #31 (built; see ADR 0012, What shows where).
 - Arrow-key movement between nodes in tree order, and the accessibility pass: #32.
 - A minimap, collapsing, export of the picture, and editing by hand: not planned.
 
 ## Consequences
 
 - Two new dependencies: `@xyflow/react` and `d3-hierarchy`.
-- Long decisions are cut off on the canvas. Until #31 links nodes to the chat, the user finds the full text by scrolling the chat.
+- Long decisions are cut off on the canvas. Selecting the node shows the full text in the chat (#31).
 - Dashed dependency edges can cross nodes and each other. If trees with many `dependsOn` links are hard to read, this needs a new ADR (for example, showing them only for the selected node).
 - A deep interview makes a wide picture. Fit-to-view keeps it visible but small. Zooming and panning are how the user reads it.
 - The animation hook is our code to maintain.
