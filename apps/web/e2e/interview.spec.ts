@@ -133,3 +133,49 @@ test("shows a provider error and offers to try again", async ({ page }) => {
   // The key must never reach the page, even inside an error message.
   await expect(page.locator("body")).not.toContainText(FAKE_KEY);
 });
+
+test.describe("with motion", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("grows the tree with a move, and the view follows to where it ends", async ({ page }) => {
+    await saveKey(page);
+    await sendIdea(page, "E2E-IDEA-JOURNEY a tool library");
+
+    const round = page.getByRole("form", { name: "Questions for this round" });
+    const canvas = page.getByRole("region", { name: "Decision tree" });
+    const node = (id: string) => canvas.getByTestId(`tree-node-${id}`);
+    await expect(node("r1q2")).toBeInViewport({ ratio: 1 });
+
+    // Every opacity the second round's node is given. Each frame of the move writes one, so
+    // this does not depend on how fast the frames come.
+    await canvas.evaluate((element) => {
+      const seen: Array<string> = [];
+      Object.assign(window, { seenOpacity: seen });
+      new MutationObserver(() => {
+        const added = element.querySelector<HTMLElement>('.react-flow__node[data-id="r2q1"]');
+        if (added) seen.push(added.style.opacity || "1");
+      }).observe(element, { subtree: true, childList: true, attributeFilter: ["style"] });
+    });
+
+    await round.getByRole("radio", { name: /A\s*Families/ }).click();
+    await round.getByRole("button", { name: "Next" }).click();
+    await round.getByRole("radio", { name: /A\s*Word of mouth/ }).click();
+    await round
+      .getByRole("textbox", { name: /Your own answer or a note/ })
+      .fill("E2E-NOTE-ROUND-1");
+    await round.getByRole("button", { name: "Submit answers" }).click();
+
+    // The move ends with every node whole in the view, and the new one fully visible.
+    for (const id of ["idea", "r1q1", "r1q2", "r2q1"]) {
+      await expect(node(id)).toBeInViewport({ ratio: 1 });
+    }
+    const added = canvas.locator('.react-flow__node[data-id="r2q1"]');
+    await expect(added).toHaveCSS("opacity", "1");
+    const seen = await page.evaluate(
+      () => (window as unknown as { seenOpacity: Array<string> }).seenOpacity,
+    );
+    // It faded in: it was drawn at least once on the way.
+    expect(seen.some((opacity) => Number(opacity) < 1)).toBe(true);
+    expect(seen.at(-1)).toBe("1");
+  });
+});
