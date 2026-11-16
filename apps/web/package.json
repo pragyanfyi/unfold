@@ -57,7 +57,7 @@
     "@vitejs/plugin-react": "^6.3.0",
     "@vitest/coverage-v8": "^5.1.0",
     "fake-indexeddb": "^6.2.8",
-    "jsdom": "^29.1.1",
+    "jsdom": "^31.0.1",
     "shadcn": "^4.23.0",
     "typescript": "^6.0.2",
     "vite": "^8.3.8",
