@@ -118,6 +118,8 @@ There is exactly one `idea` node, created from the first message. The tree's sta
 - **Linking:** clicking a node scrolls the chat to its round (#31).
 - **Small screens:** the two panes become tabs.
 
+Built in #31. Selecting a node scrolls the chat to the message that asked it, opens that round's summary and marks the question (the idea marks the first message). On small screens it also switches to the chat tab; clearing the selection does not. While a round is being answered, the question on screen is the selected node, and selecting another node of that round moves the questionnaire to it. Each answer shows on its node as soon as it is given, before the round is submitted (`features/tree/with-drafts.ts`). These drafts are on screen only: they are not in the messages, so they are never stored, and a reload drops them. Branching a new conversation from a node is not built; it still needs its own design.
+
 Layout and visual design of the canvas belong to the canvas ADR (#29).
 
 ### Branching

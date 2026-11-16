@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Label } from "#/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "#/components/ui/radio-group";
@@ -15,16 +15,41 @@ import {
 // The questionnaire for one round (ADR 0012): a stepper, one question at a time. Each question
 // has a radio group (option A is the model's recommendation) and a note box. An answer is an
 // option, the user's own text, or both; at least one is required. Going back keeps answers.
+//
+// It is linked to the canvas (#31): it reports the question on screen and the answers so far,
+// and moves to the question whose node the user selects (`showIndex`).
 export function RoundForm({
   questions,
   onSubmit,
+  showIndex = null,
+  onStepChange,
+  onDraftsChange,
 }: {
   questions: ReadonlyArray<RoundQuestion>;
   onSubmit: (answers: ReadonlyArray<Answer>) => void;
+  /** The question to show, when something outside the form picks one. */
+  showIndex?: number | null;
+  onStepChange?: (step: number) => void;
+  onDraftsChange?: (drafts: ReadonlyArray<Answer>) => void;
 }) {
   const formId = useId();
   const [drafts, setDrafts] = useState<Array<Answer>>(() => emptyAnswers(questions));
-  const [step, setStep] = useState(0);
+  const valid = (index: number | null): index is number =>
+    index !== null && index >= 0 && index < questions.length;
+  const [step, setStep] = useState(() => (valid(showIndex) ? showIndex : 0));
+  // Move only when the pick changes, so Back and Next still work while a node stays selected.
+  const [shown, setShown] = useState(showIndex);
+  if (showIndex !== shown) {
+    setShown(showIndex);
+    if (valid(showIndex)) setStep(showIndex);
+  }
+
+  const stepChange = useRef(onStepChange);
+  stepChange.current = onStepChange;
+  useEffect(() => stepChange.current?.(step), [step]);
+  const draftsChange = useRef(onDraftsChange);
+  draftsChange.current = onDraftsChange;
+  useEffect(() => draftsChange.current?.(drafts), [drafts]);
 
   const question = questions[step];
   const draft = drafts[step];

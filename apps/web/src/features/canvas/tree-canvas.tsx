@@ -3,6 +3,7 @@ import {
   Controls,
   type EdgeTypes,
   getViewportForBounds,
+  type NodeMouseHandler,
   type NodeTypes,
   type OnMoveStart,
   type OnNodesChange,
@@ -168,6 +169,14 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
     },
     [onSelect, selectedId],
   );
+  // A click on the node that is already selected changes nothing in React Flow, but it still
+  // asks to see that node's turn in the chat again (#31).
+  const onNodeClick = useCallback<NodeMouseHandler<TreeFlowNode>>(
+    (_, node) => {
+      if (node.id === selectedId) onSelect(node.id);
+    },
+    [onSelect, selectedId],
+  );
 
   return (
     <div ref={pane} className="size-full" data-testid="tree-canvas">
@@ -177,6 +186,7 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
+        onNodeClick={onNodeClick}
         onMoveStart={onMoveStart}
         fitView
         fitViewOptions={FIT}

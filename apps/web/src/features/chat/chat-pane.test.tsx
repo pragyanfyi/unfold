@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { fakeText } from "@tanstack/ai/testing";
+import type { UIMessage } from "@tanstack/ai-react";
 import { defineByok, memoryStorage } from "@tanstack/ai-react/byok";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Tree } from "#/features/tree/derive-tree";
 import { handleChatRequest } from "./chat-handler";
 import { ChatPane } from "./chat-pane";
 
@@ -554,5 +556,101 @@ describe("ChatPane: turns that break the tree rules (ADR 0012)", () => {
     );
     expect(await screen.findByText("The reply broke the interview rules")).toBeTruthy();
     expect(screen.getByText(/replied without asking a question/)).toBeTruthy();
+  });
+});
+
+describe("ChatPane: linked to the canvas (#31)", () => {
+  const TWO = {
+    settled: [],
+    questions: [
+      ROUND.questions[0],
+      {
+        title: "Where does it run?",
+        body: "",
+        label: "Platform",
+        options: [{ label: "Web" }, { label: "Phone" }],
+        parentId: "idea",
+      },
+    ],
+  };
+  const answered = [
+    { id: "u1", role: "user", parts: [{ type: "text", content: "A picnic planner" }] },
+    {
+      id: "a1",
+      role: "assistant",
+      parts: [
+        { type: "text", content: "Let's start." },
+        {
+          type: "tool-call",
+          id: "c1",
+          name: "ask_round",
+          arguments: JSON.stringify(TWO),
+          input: TWO,
+          state: "complete",
+          output: {
+            answers: { "1": { optionId: "A", text: null }, "2": { optionId: "B", text: null } },
+          },
+        },
+      ],
+    },
+  ] as Array<UIMessage>;
+
+  it("opens the selected node's round in the history and marks its question", async () => {
+    stubNetwork([]);
+    const byok = await byokWithKey(true);
+    const { rerender } = render(<ChatPane threadId="t1" byok={byok} initialMessages={answered} />);
+    expect(screen.queryByText("Where does it run?")).toBeNull();
+
+    rerender(<ChatPane threadId="t1" byok={byok} initialMessages={answered} selectedId="r1q2" />);
+    const marked = screen.getByText("Where does it run?").closest("[aria-current]");
+    expect(marked?.textContent).toContain("B. Phone");
+    expect(screen.getByText("Who is it for?").closest("[aria-current]")).toBeNull();
+
+    rerender(<ChatPane threadId="t1" byok={byok} initialMessages={answered} selectedId="idea" />);
+    expect(
+      screen
+        .getByText("A picnic planner")
+        .closest("[data-slot=bubble]")
+        ?.getAttribute("aria-current"),
+    ).toBe("true");
+  });
+
+  it("selects the question on screen, and shows answers on the tree before they are sent", async () => {
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] },
+    ]);
+    const onSelect = vi.fn();
+    const onTree = vi.fn();
+    render(
+      <ChatPane threadId="t1" byok={await byokWithKey(true)} onSelect={onSelect} onTree={onTree} />,
+    );
+    await sendIdea();
+    await screen.findByText("Who is it for?");
+    await waitFor(() => expect(onSelect).toHaveBeenLastCalledWith("r1q1"));
+
+    const states = () =>
+      (onTree.mock.lastCall?.[0] as Tree | undefined)?.nodes.map(
+        (node) => `${node.id}:${node.state}`,
+      );
+    expect(states()).toEqual(["idea:settled", "r1q1:pending", "r1q2:pending"]);
+    fireEvent.click(screen.getByRole("radio", { name: /A\s*Families/ }));
+    expect(states()).toEqual(["idea:settled", "r1q1:answered", "r1q2:pending"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(onSelect).toHaveBeenLastCalledWith("r1q2");
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("moves the questionnaire to a question of the round picked on the canvas", async () => {
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: TWO }] },
+    ]);
+    const byok = await byokWithKey(true);
+    const { rerender } = render(<ChatPane threadId="t1" byok={byok} />);
+    await sendIdea();
+    expect(await screen.findByText("Question 1 of 2")).toBeTruthy();
+    rerender(<ChatPane threadId="t1" byok={byok} selectedId="r1q2" />);
+    expect(screen.getByText("Question 2 of 2")).toBeTruthy();
+    expect(fake.pendingResponses()).toBe(0);
   });
 });

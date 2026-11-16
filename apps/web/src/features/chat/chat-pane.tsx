@@ -1,6 +1,6 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
 import { LoaderCircleIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Message, MessageContent } from "#/components/ui/message";
 import {
@@ -10,11 +10,13 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "#/components/ui/message-scroller";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "#/components/ui/trace";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
 import type { Tree } from "#/features/tree/derive-tree";
+import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
 import { ChatMessage } from "./chat-message";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
@@ -27,9 +29,13 @@ import { TurnError } from "./turn-error";
 import { describeProblem } from "./turn-problem";
 import { useInterviewChat } from "./use-interview-chat";
 
+/** A request to scroll the chat to a node's turn. `seq` makes a second request for the same node. */
+export type Reveal = { id: string; seq: number };
+
 // The interview chat (#27). It is one pane of two (ADR 0012) and knows nothing about the
-// canvas: it hands the tree it derives to whoever asks through `onTree`. Storage (#28) plugs
-// in through `initialMessages` and `onFinish`.
+// canvas: it hands the tree it derives to whoever asks through `onTree`, and is linked to it
+// only by node ids (#31): `selectedId`, `onSelect` and `reveal`. Storage (#28) plugs in through
+// `initialMessages` and `onFinish`.
 export function ChatPane({
   threadId,
   initialMessages,
@@ -37,6 +43,9 @@ export function ChatPane({
   onSavable,
   onStartOver,
   onTree,
+  selectedId = null,
+  onSelect,
+  reveal = null,
   byok = getByok(),
 }: {
   threadId: string;
@@ -48,11 +57,36 @@ export function ChatPane({
   onStartOver?: () => void;
   /** Called with the decision tree whenever its content changes (ADR 0012). */
   onTree?: (tree: Tree) => void;
+  /** The node selected on the canvas. Its question is marked in the chat. */
+  selectedId?: string | null;
+  /** Called with the node of the question on screen in the questionnaire. */
+  onSelect?: (id: string) => void;
+  /** Scrolls the chat to the turn of a node. */
+  reveal?: Reveal | null;
   byok?: ReturnType<typeof getByok>;
 }) {
   const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
-  const tree = chat.tree;
+  // The round being answered, and its question nodes in order (#31).
+  const pendingMessageId = chat.pending
+    ? (chat.messages.find((message) =>
+        message.parts.some(
+          (part) => part.type === "tool-call" && part.id === chat.pending?.toolCallId,
+        ),
+      )?.id ?? null)
+    : null;
+  const pendingIds = chat.tree.nodes
+    .filter((node) => node.kind === "question" && node.messageId === pendingMessageId)
+    .map((node) => node.id);
+  // What the user has answered in the questionnaire so far shows on the canvas before they
+  // submit. The drafts outlive the form for a moment on purpose: the submitted answers reach
+  // the messages a render later, and the node must not flick back to pending in between.
+  const [roundDrafts, setRoundDrafts] = useState<RoundDrafts | null>(null);
+  const tree = useMemo(() => withDrafts(chat.tree, roundDrafts), [chat.tree, roundDrafts]);
   useEffect(() => onTree?.(tree), [tree, onTree]);
+  const selectedNode = tree.nodes.find((node) => node.id === selectedId) ?? null;
+  // `0` for the idea, or the question's number in its round (`r2q3` is 3).
+  const selectedNumber =
+    selectedNode?.kind === "idea" ? 0 : Number(selectedNode?.id.match(/q(\d+)$/)?.[1] ?? NaN);
   const snapshot = useByok(byok);
   const keyState = snapshot.status[DEFAULT_PROVIDER]?.state;
   const hasKey = keyState === "set" || keyState === "locked";
@@ -160,6 +194,16 @@ export function ChatPane({
                     <ChatMessage
                       message={message}
                       streaming={busy && index === visible.length - 1}
+                      selected={
+                        message.id === selectedNode?.messageId && !Number.isNaN(selectedNumber)
+                          ? selectedNumber
+                          : null
+                      }
+                      revealed={
+                        message.id === selectedNode?.messageId && reveal?.id === selectedId
+                          ? reveal.seq
+                          : 0
+                      }
                     />
                   </MessageScrollerItem>
                 ))}
@@ -183,6 +227,7 @@ export function ChatPane({
             </MessageScrollerViewport>
             <MessageScrollerButton />
           </MessageScroller>
+          <RevealTurn reveal={reveal} tree={tree} />
         </MessageScrollerProvider>
       )}
 
@@ -224,6 +269,14 @@ export function ChatPane({
               key={chat.pending.toolCallId}
               questions={chat.pending.input.questions}
               onSubmit={chat.submitRound}
+              showIndex={selectedId ? pendingIds.indexOf(selectedId) : null}
+              onStepChange={(step) => {
+                const id = pendingIds[step];
+                if (id && id !== selectedId) onSelect?.(id);
+              }}
+              onDraftsChange={(drafts) => {
+                if (pendingMessageId) setRoundDrafts({ messageId: pendingMessageId, drafts });
+              }}
             />
           </div>
         ) : chat.pending?.kind === "finish" ? (
@@ -252,4 +305,22 @@ export function ChatPane({
       {keyInEmptyState ? null : <div className={hasKey ? "hidden" : "px-4 pb-4"}>{keyControl}</div>}
     </section>
   );
+}
+
+// Scrolls the chat to the turn of the node in `reveal`: the idea's message, or the message that
+// asked the node's round. A question's answers are at the end of that message, so it is
+// aligned to the bottom of the view.
+function RevealTurn({ reveal, tree }: { reveal: Reveal | null; tree: Tree }) {
+  const { scrollToMessage } = useMessageScroller();
+  const node = reveal ? tree.nodes.find((entry) => entry.id === reveal.id) : undefined;
+  const messageId = node?.messageId;
+  const align = node?.kind === "idea" ? "start" : "end";
+  const seq = reveal?.seq;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each request scrolls once, on its `seq`; a tree that grows later must not scroll again.
+  useEffect(() => {
+    if (!messageId) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scrollToMessage(messageId, { align, behavior: reduced ? "auto" : "smooth" });
+  }, [seq]);
+  return null;
 }

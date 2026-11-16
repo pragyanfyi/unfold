@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { TwoPane } from "#/components/two-pane";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { type PaneTab, TwoPane } from "#/components/two-pane";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "#/components/ui/sidebar";
 import { Skeleton } from "#/components/ui/skeleton";
 import { CanvasPane } from "#/features/canvas/canvas-pane";
-import { ChatPane } from "#/features/chat/chat-pane";
+import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
 import { onChangeElsewhere } from "#/features/storage/channel";
 import { conversationKeys, conversationQuery } from "#/features/storage/queries";
 import type { LoadedConversation } from "#/features/storage/types";
@@ -143,14 +143,26 @@ function Conversation({
     onFirstSave,
   });
   // The chat derives the tree and the canvas draws it. The selected node lives here, outside
-  // React Flow, so the chat can read it later (#31).
+  // React Flow, so both panes read it (#31).
   const [tree, setTree] = useState<Tree | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
+  const [tab, setTab] = useState<PaneTab>("chat");
+  // A node picked on the canvas shows its turn in the chat. On a small screen that means
+  // switching to the chat tab; side by side, the tab changes nothing.
+  const selectOnCanvas = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id === null) return;
+    setReveal((current) => ({ id, seq: (current?.seq ?? 0) + 1 }));
+    setTab("chat");
+  }, []);
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SaveNotice status={saver.status} onRetry={saver.retry} onNew={onNew} />
       <div className="min-h-0 flex-1">
         <TwoPane
+          tab={tab}
+          onTabChange={setTab}
           chat={
             <ChatPane
               threadId={id}
@@ -158,9 +170,12 @@ function Conversation({
               onSavable={saver.onSavable}
               onStartOver={onNew}
               onTree={setTree}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              reveal={reveal}
             />
           }
-          canvas={<CanvasPane tree={tree} selectedId={selectedId} onSelect={setSelectedId} />}
+          canvas={<CanvasPane tree={tree} selectedId={selectedId} onSelect={selectOnCanvas} />}
         />
       </div>
     </div>
