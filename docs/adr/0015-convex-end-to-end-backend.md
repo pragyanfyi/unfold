@@ -37,7 +37,7 @@ Today `connect-src` is `'self'` (`features/security/csp.ts`), and `docs/internal
 - **Decision: allow exactly our own Convex deployment, nothing else.** `connect-src` will list `'self'` plus that deployment's two origins: its client URL (`https://` and `wss://` on `<deployment>.convex.cloud`, for queries, mutations and live updates) and its HTTP actions URL (`https://<deployment>.convex.site`, where the key goes). The names come from build configuration. No wildcard such as `*.convex.cloud`, which would let a script send a key to someone else's Convex deployment.
 - The rule's purpose stays the same: the page's connections, and so the key's documented path, go only to our own backend, now running on Convex, and from there only to the provider the user chose.
 - **Rejected: proxying Convex through the Worker.** Live updates use a WebSocket, so the Worker would carry every sync message and return as a moving part, which is what this ADR removes.
-- The CSP change lands with the first PR that connects the browser to Convex (#35), together with the matching rule change in `docs/internals/byok-and-secrets.md`. ADR 0003 and `.github/SECURITY.md` are updated when the key moves (the chat move).
+- The CSP change lands with the first PR that connects the browser to Convex (#35), together with every description of the policy: the rule in `docs/internals/byok-and-secrets.md` and the CSP sentence in `.github/SECURITY.md` ("connections only to our own origin"), so no document describes a policy the code no longer has. The description of where the key goes (ADR 0003 and the key section of `SECURITY.md`) changes later, with the chat move, because that is when the key starts going to Convex.
 
 ### No browser storage of conversations
 
