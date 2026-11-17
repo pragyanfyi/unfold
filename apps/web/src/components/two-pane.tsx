@@ -6,6 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 // hidden, not unmounted, so a streaming reply and the canvas state survive switching tabs or
 // resizing the window.
 //
+// The panels are not tab stops themselves (Radix makes them one): both hold focusable controls,
+// and side by side, with the tabs hidden, a stop on the whole pane only gets in the way (#32).
+//
 // The open tab can be controlled with `tab` and `onTabChange`, so selecting a node on the
 // canvas can show its turn in the chat (#31).
 export type PaneTab = "chat" | "canvas";
@@ -38,6 +41,7 @@ export function TwoPane({
       <TabsContent
         value="chat"
         forceMount
+        tabIndex={-1}
         className="min-h-0 data-[state=inactive]:hidden md:flex md:w-[min(32rem,45%)] md:flex-none md:flex-col md:border-r md:data-[state=inactive]:flex"
       >
         {chat}
@@ -45,6 +49,7 @@ export function TwoPane({
       <TabsContent
         value="canvas"
         forceMount
+        tabIndex={-1}
         className="min-h-0 data-[state=inactive]:hidden md:block md:min-w-0 md:flex-1 md:data-[state=inactive]:block"
       >
         {canvas}

@@ -24,6 +24,10 @@ Applies to `apps/web/src/**/*.{tsx,css}`.
 - Inputs have labels; icon-only buttons have an accessible name.
 - Do not convey state by colour alone.
 - Respect `prefers-reduced-motion` for animation.
+- Text meets WCAG AA contrast (4.5:1, or 3:1 for large text). Do not dim text with `opacity-*`; use the theme's foreground tokens.
+- When a control that has focus goes away or is hidden, move focus somewhere useful with `rescueFocus` or `parkFocus` (`lib/focus.ts`). They only act when focus is lost, so they never take it from where the user put it.
+- Keys inside a widget (the canvas arrow keys) go through the hotkey registry with a scope and a `target`, like every other shortcut (`hotkeys.md`).
+- `e2e/accessibility.spec.ts` runs axe on each screen of an interview and expects no violations. Add a new screen or dialog to it.
 
 ## Decision-tree canvas (React Flow)
 
@@ -31,6 +35,7 @@ Applies to `apps/web/src/**/*.{tsx,css}`.
 - Tree state is the source of truth; React Flow state is derived from it. Do not store domain data only inside React Flow.
 - Give nodes and key controls stable `data-testid` values so E2E tests never depend on pixel positions.
 - Keep per-render work cheap: no layout computation or sorting inside node components.
+- Nodes are reached with Tab, moved between with the arrow keys (`tree-navigation.ts`), selected with Enter or Space, and cleared with Escape, which keeps focus on the node. React Flow's screen reader text is set with `ariaLabelConfig`; its default describes dragging and deleting, which the canvas does not allow.
 
 ## State
 

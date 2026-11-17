@@ -12,11 +12,14 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { HotkeysProvider, useHotkey } from "@tanstack/react-hotkeys";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { appHotkeys } from "#/features/hotkeys/registry";
 import type { Tree } from "#/features/tree/derive-tree";
 import { type TreeFlowEdge, type TreeFlowNode, toFlow } from "./flow-elements";
 import { type LayoutNode, layoutTree, NODE_HEIGHT, NODE_WIDTH, type Position } from "./layout-tree";
 import { TreeEdge } from "./tree-edge";
+import { moveInTree, type TreeMove } from "./tree-navigation";
 import { TreeNode } from "./tree-node";
 import { MOVE_MS, prefersReducedMotion, useAnimatedPositions } from "./use-animated-positions";
 
@@ -29,6 +32,17 @@ const edgeTypes: EdgeTypes = { tree: TreeEdge };
 // A lone idea node is not blown up to fill the pane.
 const FIT = { padding: 0.15, maxZoom: 1 };
 const MIN_ZOOM = 0.1;
+
+// What React Flow tells screen readers about a node and the controls. Its defaults describe
+// dragging and deleting, which this read-only canvas does not allow.
+const NODE_DESCRIPTION =
+  "Press Enter or Space to show it in the chat, and Escape to clear the selection. Arrow keys move between nodes: Left to the parent, Right to the first child, Up and Down to the siblings, Home to your idea.";
+const ARIA_LABELS = {
+  "node.a11yDescription.default": NODE_DESCRIPTION,
+  // React Flow 12.12 shows this one while keyboard access is on (its condition is inverted).
+  "node.a11yDescription.keyboardDisabled": NODE_DESCRIPTION,
+  "controls.ariaLabel": "Canvas controls",
+};
 
 /** The box around every node at its place in the layout. */
 function boundsOf(positions: ReadonlyMap<string, Position>) {
@@ -61,7 +75,10 @@ export type TreeCanvasProps = {
 export default function TreeCanvas(props: TreeCanvasProps) {
   return (
     <ReactFlowProvider>
-      <Flow {...props} />
+      {/* The arrow keys of the canvas fire only while it is mounted and has focus. */}
+      <HotkeysProvider scope="canvas">
+        <Flow {...props} />
+      </HotkeysProvider>
     </ReactFlowProvider>
   );
 }
@@ -156,8 +173,41 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
     return () => observer.disconnect();
   }, [fitTree]);
 
+  // Arrow keys move focus between nodes along the tree (tree-navigation.ts). Focus, not the
+  // selection, moves: Enter or Space then shows the node in the chat. React Flow pans to a
+  // focused node that is out of view.
+  const moveFocus = useCallback(
+    (move: TreeMove) => (event: KeyboardEvent) => {
+      const from = (event.target as Element | null)?.closest<HTMLElement>(".react-flow__node");
+      const fromId = from?.dataset.id;
+      if (!fromId) return;
+      const toId = moveInTree(layoutNodes, fromId, move);
+      if (!toId) return;
+      pane.current
+        ?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(toId)}"]`)
+        ?.focus();
+    },
+    [layoutNodes],
+  );
+  const onPane = { target: pane };
+  useHotkey(appHotkeys["canvas.parent"], moveFocus("parent"), onPane);
+  useHotkey(appHotkeys["canvas.child"], moveFocus("child"), onPane);
+  useHotkey(appHotkeys["canvas.previous"], moveFocus("previous"), onPane);
+  useHotkey(appHotkeys["canvas.next"], moveFocus("next"), onPane);
+  useHotkey(appHotkeys["canvas.root"], moveFocus("root"), onPane);
+  // Escape clears the selection, and focus stays where it is. React Flow does the same on a
+  // node but then blurs it; this runs first (capture) and the key goes no further.
+  useHotkey(
+    appHotkeys["canvas.clear"],
+    (event) => {
+      if (!(event.target as Element | null)?.closest(".react-flow__node")) return;
+      if (selectedId !== null) onSelect(null);
+    },
+    onPane,
+  );
+
   // Selection is kept by the app, not by React Flow. A click, Enter or Space selects a node;
-  // Escape or a click on the background clears it.
+  // Escape (above) or a click on the background clears it.
   const onNodesChange = useCallback<OnNodesChange<TreeFlowNode>>(
     (changes) => {
       const picked = changes.find((change) => change.type === "select" && change.selected);
@@ -196,6 +246,7 @@ function Flow({ tree, selectedId, onSelect }: TreeCanvasProps) {
         nodesConnectable={false}
         edgesFocusable={false}
         deleteKeyCode={null}
+        ariaLabelConfig={ARIA_LABELS}
       >
         <Controls
           showInteractive={false}

@@ -15,7 +15,7 @@ The shortcuts themselves are listed only in the registry (below) and in the app'
 - Use `Mod` semantics: Cmd on macOS, Ctrl elsewhere. Show the correct symbol for the user's platform.
 - Do not override browser or OS shortcuts (reload, new tab, copy, paste, undo, and so on).
 - Shortcuts do not fire while the user is typing in an input, textarea or editable element, unless the entry explicitly opts in (`options: { ignoreInputs: false }`) and the description says "Works while typing". The registry test checks the two match.
-- No single-character shortcuts (such as `/` or `?`) until users can turn them off or change them (WCAG 2.1.4). Use a modifier.
+- No global single-character shortcuts (such as `/` or `?`) until users can turn them off or change them (WCAG 2.1.4). Use a modifier. A plain key is fine when it fires only while a component has focus (the canvas arrow keys): give it that component's `scope`, mount a `HotkeysProvider scope="..."` around the component, and pass `target` (a ref to its element) to `useHotkey`.
 - Every action reachable by a shortcut is also reachable with the pointer.
 
 ## Third-party shortcuts

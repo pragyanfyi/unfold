@@ -28,6 +28,64 @@ export const appHotkeys = defineAppHotkeys({
     },
     options: { ignoreInputs: false },
   },
+  // Moving between nodes of the decision tree (features/canvas/tree-navigation.ts). They fire
+  // only while focus is on the canvas, which is what lets them be plain keys (WCAG 2.1.4).
+  "canvas.parent": {
+    hotkey: "ArrowLeft",
+    scope: "canvas",
+    meta: {
+      name: "Go to the parent node",
+      description: "When a node on the canvas has focus.",
+      group: "Canvas",
+    },
+  },
+  "canvas.child": {
+    hotkey: "ArrowRight",
+    scope: "canvas",
+    meta: {
+      name: "Go to the first child node",
+      description: "When a node on the canvas has focus.",
+      group: "Canvas",
+    },
+  },
+  "canvas.previous": {
+    hotkey: "ArrowUp",
+    scope: "canvas",
+    meta: {
+      name: "Go to the previous sibling",
+      description: "When a node on the canvas has focus.",
+      group: "Canvas",
+    },
+  },
+  "canvas.next": {
+    hotkey: "ArrowDown",
+    scope: "canvas",
+    meta: {
+      name: "Go to the next sibling",
+      description: "When a node on the canvas has focus.",
+      group: "Canvas",
+    },
+  },
+  "canvas.root": {
+    hotkey: "Home",
+    scope: "canvas",
+    meta: {
+      name: "Go to your idea",
+      description: "When a node on the canvas has focus.",
+      group: "Canvas",
+    },
+  },
+  // Caught before React Flow, which would also blur the node and leave focus on <body>.
+  "canvas.clear": {
+    hotkey: "Escape",
+    scope: "canvas",
+    meta: {
+      name: "Clear the selection",
+      description: "When a node on the canvas has focus. Focus stays on the node.",
+      group: "Canvas",
+    },
+    options: { capture: true },
+  },
   // Sonner binds this itself (components/ui/sonner.tsx), so it is declared here for the list and
   // the duplicate check, and never registered with `useHotkey`.
   "toasts.focus": {
