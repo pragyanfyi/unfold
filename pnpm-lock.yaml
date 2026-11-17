@@ -97,8 +97,8 @@ importers:
         specifier: ^1.26.0
         version: 1.67.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0))(workerd@1.20261104.1)(wrangler@4.158.0(@types/node@22.20.5))
       '@copilotkit/aimock':
-        specifier: ^1.47.0
-        version: 1.47.0(vitest@5.1.0)
+        specifier: ^1.48.0
+        version: 1.48.0(vitest@5.1.0)
       '@playwright/test':
         specifier: ^1.65.0
         version: 1.65.0
@@ -480,8 +480,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@copilotkit/aimock@1.47.0':
-    resolution: {integrity: sha512-wFPQ8olsToCnsEfJricsCizm9YFrrv/GJ77avB0YRsGP1r5hxvQ4SOl0ATUBa6aowSXkr3ENJaxWsndVXSZfkw==}
+  '@copilotkit/aimock@1.48.0':
+    resolution: {integrity: sha512-i6gNetBqgelSi3+Lf+y7Z1vUivxWbioImnb/FuVkVHzh7HwVyO/vQ9UA/IBcqWtsL6QOLgrr1w7KHsyyuHTiCg==}
     engines: {node: '>=20.15.0'}
     hasBin: true
     peerDependencies:
@@ -4115,7 +4115,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261104.1':
     optional: true
 
-  '@copilotkit/aimock@1.47.0(vitest@5.1.0)':
+  '@copilotkit/aimock@1.48.0(vitest@5.1.0)':
     optionalDependencies:
       vitest: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(jsdom@29.1.1)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0))
 
