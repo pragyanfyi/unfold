@@ -36,6 +36,8 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
 
 - One document per **idea** (the conversation: owner, title, status, timestamps) and one per **message**, keyed by idea and `seq`. One message per document keeps each well under the 1 MiB limit, which a whole conversation in one document could outgrow.
 - ADR 0012 still holds: messages are the source of truth, the tree is derived by `deriveTree`, `seq` is the only order, and messages are append-only. The `nextSeq` and `titleRev` checks of ADR 0013 become checks inside Convex mutations, which run as transactions.
+- **Only final messages become message documents.** The finality rule of ADR 0013 and its #28 notes stays: a message is final when it will no longer change. That means user messages, assistant messages whose tool calls all have an answer (the answer is stored with the message, ADR 0012), and a closing reply once its run has finished. The savable-prefix logic decides this, as it does today.
+- **Everything not yet final lives in one turn document per idea.** This covers a reply that is still streaming, and a round or finish proposal waiting for the user's answer. The action overwrites the turn document in batches while it streams. When the user answers, one mutation appends the now-final messages at `seq = nextSeq …` and clears the turn document, so message documents are never edited. A failed or stopped run leaves the turn document marked as interrupted, and is never appended.
 - Documents hold only what the app needs. Provider keys never appear in any document, argument or log (ADR 0003).
 - Schema changes are backward compatible, as ADR 0009 required for D1: add a field before code uses it, migrate data, then remove the old field only when nothing reads it, because the previous release's code may run against the new schema during a deploy.
 
@@ -43,7 +45,7 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
 
 - The model call moves from `routes/api/chat.ts` to a **Convex HTTP action** that streams the reply to the browser, as the Worker route does today.
 - **The key arrives in a request header, never as a function argument.** An argument to a scheduled function is stored in Convex until the job runs, and an ordinary argument is a value we would have to keep out of every log and error by hand. The log stream schema has no field for HTTP headers. So the browser calls the HTTP action with the key in the `x-byok-<provider>` header, and the action never passes the key to `ctx.scheduler`, `ctx.runMutation`, `ctx.runAction` or a log line.
-- The action checks that the caller is signed in and owns the idea before calling the model, and saves the reply with mutations as it streams, in batches rather than per token.
+- The action checks that the caller is signed in and owns the idea before calling the model, and writes the reply to the idea's turn document (see Data model) as it streams, in batches rather than per token.
 - Every rule in `docs/internals/byok-and-secrets.md` carries over: the safe logger, the library logger override, fixed error strings, scrubbed `RUN_ERROR` chunks, the sentinel key test and the lint rules. ADR 0003 and `SECURITY.md` are updated in the PR that moves the route.
 
 ### Deployment
@@ -62,14 +64,14 @@ Read 2026-11-17 from [Convex pricing](https://www.convex.dev/pricing), its [FAQ]
 
 - On the Free plan, after a limit is hit "new mutations that attempt to commit more insertions or updates may fail", and the FAQ says the deployment "may return HTTP errors" if a limit is exceeded "for an extended period of time". Notification emails come first.
 - Action compute is memory multiplied by time (implied by the log stream docs). Whether the time is wall-clock or CPU time is not stated. If it is wall-clock, a streamed reply that waits on the model is billed for the whole wait.
-- Every reply costs function calls three ways: the action itself, the mutations that save the reply in batches, and the live query that re-runs for each open tab after each batch. **Not measured yet.** The PR that moves the chat measures one reply and records it here.
-- Workers now only serves pages, so it stays well inside its free plan.
+- Every reply costs function calls three ways: the action itself, the mutations that write the turn document in batches, and the live query that re-runs for each open tab after each batch. **Not measured yet.** The PR that moves the chat measures one reply and records it here.
+- After the move, Workers only serves pages, so it stays well inside its free plan.
 
 ## Changes to earlier ADRs
 
 ADRs are immutable (ADR 0001); these notes record what changes and where.
 
-- **ADR 0003 (BYOK):** the documented hop is now Unfold's Convex HTTP action instead of the Worker route. The rules stay; rule 1 now reads "never written to a Convex document, a function argument, a log …". Updated in detail by the chat move.
+- **ADR 0003 (BYOK):** once the chat move ships, the documented hop will be Unfold's Convex HTTP action instead of the Worker route. The rules stay; rule 1 will read "never written to a Convex document, a function argument, a log …". Until then ADR 0003 and `SECURITY.md` describe the Worker route, which is what the code does. Both are updated in detail by the chat move.
 - **ADR 0005 (deployment):** adds the Convex deploy before the Worker deploy, and a Convex deploy key. The post-deploy smoke test stays.
 - **ADR 0008 (Better Auth):** superseded. ADR 0016 replaces it: Convex Auth v2 with Google, required before the first chat. Two parts of ADR 0008 still hold: Google is the sign-up method, and provider keys are never stored by the server.
 - **ADR 0011 (testing):** item 3 becomes "the production build with a local Convex backend, no Convex or Cloudflare account". Item 10 (how E2E signs in) is settled by the auth spike (#33) and recorded in ADR 0016.
@@ -78,9 +80,9 @@ ADRs are immutable (ADR 0001); these notes record what changes and where.
 ## Consequences
 
 - Sync, conflict handling, tombstones and per-browser ownership (ADR 0013, "Open for #36") are no longer problems: there is one copy, and Convex pushes changes to every open tab and device.
-- A reload no longer has to lose a reply in progress, because the server saves it. Whether an HTTP action keeps running after the browser disconnects is **not verified**; if it stops, a reload still loses the unsaved part, and we decide then whether that needs more design.
+- A reload no longer loses a round waiting for an answer, or the part of a reply already written to the turn document; ADR 0013 lost both. Whether an HTTP action keeps running after the browser disconnects is **not verified**. If it stops, the turn document keeps what was written up to the last batch, marked as interrupted, and the user presses Try again, which replaces it with a new run. The partial reply is never appended as a message.
 - Conversations are stored on our server, tied to the user's account. The privacy note and `SECURITY.md` must say so before this ships.
-- Provider keys now pass through Convex instead of Cloudflare. Users must trust that our Convex functions do not log them; self-hosting stays possible.
+- Once the chat move ships, provider keys will pass through Convex instead of Cloudflare. Users will have to trust that our Convex functions do not log them; self-hosting stays possible.
 - The IndexedDB work from #28 is removed. The interview logic, `deriveTree`, the savable-prefix logic, the canvas and the UI stay.
 - Development needs a Convex backend: `pnpm dev` runs alongside it (documented in `docs/operations/development.md` when it lands). CI needs one too, local and without secrets.
 - One more vendor and one more deploy step. A Convex outage takes the whole app down except static pages.
