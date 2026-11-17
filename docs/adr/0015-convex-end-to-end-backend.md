@@ -32,7 +32,7 @@ None of this is built yet. This section describes the design the Convex migratio
 
 ### Content-Security-Policy
 
-Today `connect-src` is `'self'` (`features/security/csp.ts`), and `docs/internals/byok-and-secrets.md` forbids adding a host, so a key cannot be sent anywhere but Unfold's own server. Convex is a different origin, so the browser cannot reach it under that policy.
+Today `connect-src` is `'self'` (`features/security/csp.ts`), and `docs/internals/byok-and-secrets.md` forbids adding a host. `connect-src` restricts the URLs that script interfaces such as `fetch` and `WebSocket` can load ([CSP Level 3](https://www.w3.org/TR/CSP3/#directive-connect-src), read 2026-11-17). It does not restrict top-level navigation, so an injected script that can read a key could still send it elsewhere in a navigation URL. The policy narrows where a key can go; preventing script injection (ADR 0003, rule 5) remains the main defence. Convex is a different origin, so the browser cannot reach it under the current policy.
 
 - **Decision: allow exactly our own Convex deployment, nothing else.** `connect-src` will list `'self'` plus that deployment's two origins: its client URL (`https://` and `wss://` on `<deployment>.convex.cloud`, for queries, mutations and live updates) and its HTTP actions URL (`https://<deployment>.convex.site`, where the key goes). The names come from build configuration. No wildcard such as `*.convex.cloud`, which would let a script send a key to someone else's Convex deployment.
 - The rule's purpose stays the same: a key goes only to our own backend, now running on Convex, and from there only to the provider the user chose.
@@ -57,7 +57,7 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
   - **Batch writes and the end-of-run mutation** will require the same run id **and** `running`, in the same transaction. A run that resumes after its turn was marked `interrupted`, or after another run took over, is rejected and writes nothing. The end-of-run mutation either appends a closing reply and clears the turn, or sets `waiting`.
   - **The answer mutation** will require `waiting` and the run id the user is answering, and check `nextSeq` where it appends.
   - A new run will be allowed to start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
-- **Marking a run interrupted will not rely on the action (planned).** If the action fails or is stopped, it will mark the turn `interrupted` itself. If it dies without doing so, a scheduled check will. The start mutation will schedule a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
+- **Marking a run interrupted will not rely on the action (planned).** If the action fails or is stopped, it will mark the turn `interrupted` itself, with the same guard as its other writes (its own run id and `running`), so a failing stale run cannot interrupt a newer run's turn. If it dies without doing so, a scheduled check will. The start mutation will schedule a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
   - if another run owns the turn, or the turn is no longer `running`, it does nothing and does not reschedule;
   - if the same run owns the turn and has not written for a set time, it marks the turn `interrupted`;
   - otherwise the run is still active, and it schedules itself again for the set time after the run's last write.
