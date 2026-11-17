@@ -48,7 +48,7 @@ export function AppSidebar({
 
   return (
     <>
-      <Sidebar variant="inset" aria-label="Saved ideas">
+      <Sidebar variant="inset" role="navigation" aria-label="Saved ideas">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>

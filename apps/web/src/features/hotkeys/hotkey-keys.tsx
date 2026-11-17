@@ -10,7 +10,10 @@ export function HotkeyKeys({ hotkey }: { hotkey: Hotkey }) {
     <span>
       <KbdGroup aria-hidden="true">
         {keys.map((key) => (
-          <Kbd key={key}>{key}</Kbd>
+          // The default muted text on the muted keycap is just under AA contrast.
+          <Kbd key={key} className="text-foreground">
+            {key}
+          </Kbd>
         ))}
       </KbdGroup>
       <span className="sr-only">{format(hotkey, { useSymbols: false })}</span>

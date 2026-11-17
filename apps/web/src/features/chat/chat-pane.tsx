@@ -1,6 +1,6 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
 import { LoaderCircleIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Message, MessageContent } from "#/components/ui/message";
 import {
@@ -17,6 +17,7 @@ import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
 import type { Tree } from "#/features/tree/derive-tree";
 import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
+import { parkFocus, rescueFocus } from "#/lib/focus";
 import { ChatMessage } from "./chat-message";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
@@ -169,6 +170,15 @@ export function ChatPane({
   // the empty state when the user has no key, and out of sight otherwise.
   const emptyState = visible.length === 0 && !busy;
   const keyInEmptyState = emptyState && !hasKey;
+  // When the control the user was on goes away (Send, or a submitted questionnaire), focus
+  // goes to the messages while the reply loads. A new questionnaire or finish card then takes
+  // it for itself: their effects run before this one (#32).
+  const messages = useRef<HTMLDivElement>(null);
+  const pendingId = chat.pending?.toolCallId ?? null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these are the moments a control goes away.
+  useEffect(() => {
+    parkFocus(messages.current);
+  }, [emptyState, pendingId, busy]);
 
   return (
     <section aria-label="Interview chat" className="flex h-full min-h-0 flex-col">
@@ -183,7 +193,7 @@ export function ChatPane({
       ) : (
         <MessageScrollerProvider>
           <MessageScroller className="flex-1">
-            <MessageScrollerViewport>
+            <MessageScrollerViewport ref={messages}>
               <MessageScrollerContent className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
                 {visible.map((message, index) => (
                   <MessageScrollerItem
@@ -227,7 +237,7 @@ export function ChatPane({
             </MessageScrollerViewport>
             <MessageScrollerButton />
           </MessageScroller>
-          <RevealTurn reveal={reveal} tree={tree} />
+          <RevealTurn reveal={reveal} tree={tree} messages={messages} />
         </MessageScrollerProvider>
       )}
 
@@ -310,7 +320,18 @@ export function ChatPane({
 // Scrolls the chat to the turn of the node in `reveal`: the idea's message, or the message that
 // asked the node's round. A question's answers are at the end of that message, so it is
 // aligned to the bottom of the view.
-function RevealTurn({ reveal, tree }: { reveal: Reveal | null; tree: Tree }) {
+//
+// On a phone the chat tab opens for it, and the canvas node that had focus is hidden: focus
+// then moves to the messages.
+function RevealTurn({
+  reveal,
+  tree,
+  messages,
+}: {
+  reveal: Reveal | null;
+  tree: Tree;
+  messages: RefObject<HTMLDivElement | null>;
+}) {
   const { scrollToMessage } = useMessageScroller();
   const node = reveal ? tree.nodes.find((entry) => entry.id === reveal.id) : undefined;
   const messageId = node?.messageId;
@@ -321,6 +342,7 @@ function RevealTurn({ reveal, tree }: { reveal: Reveal | null; tree: Tree }) {
     if (!messageId) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     scrollToMessage(messageId, { align, behavior: reduced ? "auto" : "smooth" });
+    rescueFocus(messages.current);
   }, [seq]);
   return null;
 }

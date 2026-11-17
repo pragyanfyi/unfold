@@ -3,6 +3,7 @@ import { Button } from "#/components/ui/button";
 import { Label } from "#/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "#/components/ui/radio-group";
 import { Textarea } from "#/components/ui/textarea";
+import { rescueFocus } from "#/lib/focus";
 import {
   type Answer,
   emptyAnswers,
@@ -51,6 +52,16 @@ export function RoundForm({
   draftsChange.current = onDraftsChange;
   useEffect(() => draftsChange.current?.(drafts), [drafts]);
 
+  // A new round, or the next question after Enter in its fieldset (which is replaced), would
+  // leave focus nowhere: put it on the question's options, so the user can answer at once.
+  const form = useRef<HTMLFormElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs for each question shown.
+  useEffect(() => {
+    const radios = form.current?.querySelectorAll<HTMLElement>('[role="radio"]');
+    const tabStop = [...(radios ?? [])].find((radio) => radio.tabIndex === 0) ?? radios?.[0];
+    rescueFocus(tabStop);
+  }, [step]);
+
   const question = questions[step];
   const draft = drafts[step];
   if (!question || !draft) return null;
@@ -75,6 +86,7 @@ export function RoundForm({
 
   return (
     <form
+      ref={form}
       aria-label="Questions for this round"
       className="flex flex-col gap-4"
       onSubmit={(event) => {

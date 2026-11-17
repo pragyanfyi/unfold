@@ -128,3 +128,9 @@
     @apply font-sans;
   }
 }
+
+/* React Flow's attribution link is light grey on white, below WCAG AA contrast. React Flow's
+   own stylesheet loads after this one, so the rule needs the extra class to win. */
+.react-flow .react-flow__attribution a {
+  color: var(--muted-foreground);
+}

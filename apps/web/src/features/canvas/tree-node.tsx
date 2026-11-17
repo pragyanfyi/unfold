@@ -41,22 +41,21 @@ function TreeNodeCard({ id, data, selected }: NodeProps<TreeFlowNode>) {
       data-state={data.state}
       className={cn(
         "flex size-full flex-col gap-1 rounded-xl border p-3 text-card-foreground shadow-xs",
-        "in-focus-visible:ring-3 in-focus-visible:ring-ring/50",
+        // Focus is an outline set off from the card, so it never looks like the selection ring.
+        "in-focus-visible:outline-2 in-focus-visible:outline-offset-3 in-focus-visible:outline-foreground",
         idea ? "bg-primary text-primary-foreground" : STATE_TONE[data.state],
         selected && "border-ring ring-2 ring-ring",
       )}
     >
       {/* Edges attach here. Nothing can be connected by hand. */}
       <Handle type="target" position={Position.Left} isConnectable={false} className="invisible" />
-      <div className="flex items-center gap-1.5 text-xs leading-4 opacity-80">
+      <div className="flex items-center gap-1.5 text-xs leading-4">
         <Icon aria-hidden className="size-3.5 shrink-0" />
         <span>{idea ? "Your idea" : stateLabel(data.state)}</span>
         {note ? <span className="ml-auto truncate">{note}</span> : null}
       </div>
       <p className="line-clamp-2 text-sm leading-5 font-medium">{data.label}</p>
-      {data.detail ? (
-        <p className="line-clamp-2 text-xs leading-4 opacity-80">{data.detail}</p>
-      ) : null}
+      {data.detail ? <p className="line-clamp-2 text-xs leading-4">{data.detail}</p> : null}
       <Handle type="source" position={Position.Right} isConnectable={false} className="invisible" />
     </div>
   );

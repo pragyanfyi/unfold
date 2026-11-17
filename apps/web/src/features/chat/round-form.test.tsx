@@ -142,4 +142,27 @@ describe("RoundForm", () => {
     rerender(<RoundForm questions={questions} onSubmit={() => {}} showIndex={-1} />);
     expect(screen.getByText("Question 1 of 2")).toBeTruthy();
   });
+
+  // #32: a new round replaces the control the user was on, which leaves focus on <body>.
+  it("puts focus on the first option when it appears and focus was lost", () => {
+    render(<RoundForm questions={questions} onSubmit={() => {}} />);
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: /Families/ }));
+  });
+
+  it("leaves focus where the user put it", () => {
+    render(
+      <>
+        <button type="button">elsewhere</button>
+        <RoundForm questions={questions} onSubmit={() => {}} />
+      </>,
+    );
+    // The form mounted with the button: move focus there and show the next question.
+    const elsewhere = screen.getByRole("button", { name: "elsewhere" });
+    elsewhere.focus();
+    fireEvent.click(screen.getByRole("radio", { name: /Families/ }));
+    elsewhere.focus();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Question 2 of 2")).toBeTruthy();
+    expect(document.activeElement).toBe(elsewhere);
+  });
 });
