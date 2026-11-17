@@ -364,7 +364,8 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onSavable={onSavable} />);
     await sendIdea();
     await screen.findByText("The reply failed");
-    expect(onSavable).toHaveBeenCalledTimes(1);
+    // The offer comes from a passive effect, which can run after the error is on screen.
+    await waitFor(() => expect(onSavable).toHaveBeenCalledTimes(1));
     expect(onSavable.mock.calls[0][0].map((m: { role: string }) => m.role)).toEqual(["user"]);
   });
 
