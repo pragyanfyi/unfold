@@ -30,6 +30,15 @@ None of this is built yet. This section describes the design the Convex migratio
 - **Cloudflare Workers** keeps serving the TanStack Start app: server-rendered pages and static assets, as today (ADR 0005). It has no API routes, no database and no secrets of its own once the chat route has moved. Convex does not host TanStack Start's server rendering.
 - The browser talks to Convex directly, through Convex's TanStack Query integration.
 
+### Content-Security-Policy
+
+Today `connect-src` is `'self'` (`features/security/csp.ts`), and `docs/internals/byok-and-secrets.md` forbids adding a host, so a key cannot be sent anywhere but Unfold's own server. Convex is a different origin, so the browser cannot reach it under that policy.
+
+- **Decision: allow exactly our own Convex deployment, nothing else.** `connect-src` will list `'self'` plus that deployment's two origins: its client URL (`https://` and `wss://` on `<deployment>.convex.cloud`, for queries, mutations and live updates) and its HTTP actions URL (`https://<deployment>.convex.site`, where the key goes). The names come from build configuration. No wildcard such as `*.convex.cloud`, which would let a script send a key to someone else's Convex deployment.
+- The rule's purpose stays the same: a key goes only to our own backend, now running on Convex, and from there only to the provider the user chose.
+- **Rejected: proxying Convex through the Worker.** Live updates use a WebSocket, so the Worker would carry every sync message and return as a moving part, which is what this ADR removes.
+- The CSP change lands with the first PR that connects the browser to Convex (#35), together with the matching rule change in `docs/internals/byok-and-secrets.md`. ADR 0003 and `.github/SECURITY.md` are updated when the key moves (the chat move).
+
 ### No browser storage of conversations
 
 IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the BroadcastChannel hint and the `persist()` notice. Data already in browsers is dropped without a notice (no users yet). There is no offline mode: every turn needs the model API anyway. Provider keys stay in the browser exactly as ADR 0003 describes; that store is unrelated.
@@ -44,7 +53,10 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
   - when a run ends with a closing reply that needs no answer, in the mutation that ends the run.
 
   A failed or stopped run is never appended.
-- **One run per idea, owned by a run id (planned).** Starting a run will be a mutation that writes a new run id, a `running` status and a last-write time into the turn document. Every batch write, the end-of-run mutation and the answer mutation will check the run id (and `nextSeq` where they append) in the same transaction, so a stale run cannot write to or clear a turn it no longer owns. A new run will be allowed to start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
+- **One run per idea, owned by a run id (planned).** A turn document will have one of three statuses: `running` (the action is streaming), `waiting` (the run ended with a round or finish proposal that needs the user's answer) and `interrupted`. Starting a run will be a mutation that writes a new run id, `running` and a last-write time.
+  - **Batch writes and the end-of-run mutation** will require the same run id **and** `running`, in the same transaction. A run that resumes after its turn was marked `interrupted`, or after another run took over, is rejected and writes nothing. The end-of-run mutation either appends a closing reply and clears the turn, or sets `waiting`.
+  - **The answer mutation** will require `waiting` and the run id the user is answering, and check `nextSeq` where it appends.
+  - A new run will be allowed to start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
 - **Marking a run interrupted will not rely on the action (planned).** If the action fails or is stopped, it will mark the turn `interrupted` itself. If it dies without doing so, a scheduled check will. The start mutation will schedule a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
   - if another run owns the turn, or the turn is no longer `running`, it does nothing and does not reschedule;
   - if the same run owns the turn and has not written for a set time, it marks the turn `interrupted`;
