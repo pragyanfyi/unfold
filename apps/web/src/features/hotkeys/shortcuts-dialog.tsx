@@ -1,4 +1,5 @@
 import { type Hotkey, useAppHotkeyList } from "@tanstack/react-hotkeys";
+import { useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,9 +20,24 @@ export function ShortcutsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // It opens from a shortcut or a button outside it, so Radix has no trigger to give focus back
+  // to on close and would leave it on <body>. Remember what had focus (Radix has not moved it
+  // yet when it asks for the open focus) and return there.
+  const opener = useRef<HTMLElement | null>(null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onOpenAutoFocus={() => {
+          opener.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          if (!opener.current?.isConnected) return;
+          event.preventDefault();
+          opener.current.focus();
+          opener.current = null;
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>Cmd on macOS, Ctrl on other systems.</DialogDescription>

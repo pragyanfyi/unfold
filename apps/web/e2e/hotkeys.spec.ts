@@ -22,6 +22,16 @@ test("Mod+/ opens the shortcuts list while typing, and Mod+B hides the sidebar",
   await expect(dialog.getByTestId("shortcut-toasts.focus")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+  // Focus goes back where it was, so the user can keep typing.
+  await expect(idea).toBeFocused();
+
+  // The same from the header button: focus returns to the button.
+  const button = page.getByRole("button", { name: "Keyboard shortcuts" });
+  await button.click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(button).toBeFocused();
 
   const sidebar = page.locator("[data-slot=sidebar][data-state]");
   await expect(sidebar).toHaveAttribute("data-state", "expanded");
