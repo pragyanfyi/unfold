@@ -22,6 +22,8 @@ What we checked (all read 2026-11-17):
 
 ## Decision
 
+None of this is built yet. This section describes the design the Convex migration will build; until it ships, the app works as ADRs 0003 and 0013 describe.
+
 ### What runs where
 
 - **Convex** holds all application data and all server logic: ideas and messages, accounts (ADR 0016), and the model call that runs the interview.
@@ -42,8 +44,13 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
   - when a run ends with a closing reply that needs no answer, in the mutation that ends the run.
 
   A failed or stopped run is never appended.
-- **One run per idea, owned by a run id.** Starting a run is a mutation that writes a new run id, a `running` status and a last-write time into the turn document. Every batch write, the end-of-run mutation and the answer mutation check the run id (and `nextSeq` where they append) in the same transaction, so a stale run cannot write to or clear a turn it no longer owns. A new run may start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
-- **Marking a run interrupted does not rely on the action.** If the action fails or is stopped, it marks the turn `interrupted` itself. If it dies without doing so, a check does: the start mutation schedules a mutation (with only the idea id and run id as arguments, never the key) that marks the turn `interrupted` if the same run still owns it and has not written for a set time. The time is chosen when this is built, above the longest normal gap between batches. Try again is offered only for an `interrupted` turn, and replaces it with a new run.
+- **One run per idea, owned by a run id (planned).** Starting a run will be a mutation that writes a new run id, a `running` status and a last-write time into the turn document. Every batch write, the end-of-run mutation and the answer mutation will check the run id (and `nextSeq` where they append) in the same transaction, so a stale run cannot write to or clear a turn it no longer owns. A new run will be allowed to start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
+- **Marking a run interrupted will not rely on the action (planned).** If the action fails or is stopped, it will mark the turn `interrupted` itself. If it dies without doing so, a scheduled check will. The start mutation will schedule a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
+  - if another run owns the turn, or the turn is no longer `running`, it does nothing and does not reschedule;
+  - if the same run owns the turn and has not written for a set time, it marks the turn `interrupted`;
+  - otherwise the run is still active, and it schedules itself again for the set time after the run's last write.
+
+  So a live run always has one pending check, and a run that dies is marked within about the set time after its last write. The time will be chosen when this is built, above the longest normal gap between batches. Try again will be offered only for an `interrupted` turn, and will replace it with a new run.
 - Documents hold only what the app needs. Provider keys never appear in any document, argument or log (ADR 0003).
 - Schema changes are backward compatible, as ADR 0009 required for D1: add a field before code uses it, migrate data, then remove the old field only when nothing reads it, because the previous release's code may run against the new schema during a deploy.
 
