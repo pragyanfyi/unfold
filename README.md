@@ -20,7 +20,7 @@ Unfold has no AI gateway and no paid tier. You supply your own provider API key.
 
 - [TanStack Start](https://tanstack.com/start), [Query](https://tanstack.com/query), [Hotkeys](https://tanstack.com/hotkeys) and [AI](https://tanstack.com/ai)
 - [React Flow](https://reactflow.dev) for the tree canvas
-- [Cloudflare](https://www.cloudflare.com) Workers and D1, with [Drizzle](https://orm.drizzle.team) and [Better Auth](https://www.better-auth.com)
+- [Convex](https://www.convex.dev) for data, accounts and the AI call, with the app served from [Cloudflare](https://www.cloudflare.com) Workers (moving to Convex is in progress)
 - pnpm workspace, [Biome](https://biomejs.dev), [Vitest](https://vitest.dev) and [Playwright](https://playwright.dev)
 
 ## Credits

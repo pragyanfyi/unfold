@@ -1,0 +1,93 @@
+# 15. Convex as the backend, end to end
+
+- Status: Proposed
+- Date: 2026-11-17
+- Supersedes: ADR 0009 (D1 and Drizzle), ADR 0010 (no KV), ADR 0013 (local-first storage)
+- Amends: ADR 0003, 0005, 0011 and 0012 (see Changes to earlier ADRs)
+
+## Context
+
+The plan was Cloudflare D1 for data (ADR 0009), Better Auth for accounts (ADR 0008), and conversations kept in the browser (ADR 0013), synced to D1 later (#36). Sync was the hardest open problem on the roadmap: ADR 0013 lists conflicts between devices that append offline, deletions that reappear on the next pull, which local conversations belong to which account, and merging titles.
+
+The maintainer decided on 2026-11-17 to use Convex for the whole backend instead, to drop browser storage, and to require Google sign-up before the first chat (ADR 0016). No one uses the app yet, so nothing needs migrating.
+
+What we checked (all read 2026-11-17):
+
+- **Limits** ([Convex, "Limits"](https://docs.convex.dev/production/state/limits)): documents up to 1 MiB; function arguments and return values up to 16 MiB (Node actions: arguments up to 5 MiB); queries and mutations 1 second of user code; actions 30 minutes in the Convex runtime with 64 MiB of memory, 10 minutes in the Node runtime with 512 MiB. "Subscription updates" count as function calls. Each action keeps at most 1,024 log lines.
+- **HTTP actions** ([Convex, "HTTP Actions"](https://docs.convex.dev/functions/http-actions)): a response body can be a `ReadableStream` (the page recommends it for large responses; it shows no streaming example and does not mention server-sent events). Responses up to 100 MiB. HTTP actions are not retried. CORS is the handler's job. The page does not say which time limit applies to HTTP actions, or whether one keeps running after the client disconnects.
+- **Logs** ([dashboard logs](https://docs.convex.dev/dashboard/deployments/logs), [log streams](https://docs.convex.dev/production/integrations/log-streams)): the dashboard shows a function's log lines and exceptions. The log stream schema records the _size_ of a function's arguments, "Absent for HTTP actions", and has no field for HTTP headers or bodies. Neither page says argument contents are logged, nor that anything is redacted.
+- **TanStack Start** ([Convex, "TanStack Start"](https://docs.convex.dev/client/react/tanstack-start)): the recommended integration is through TanStack Query (`@tanstack/react-query` 5.102.0 or later); `useSuspenseQuery` renders on the server and the browser resumes live subscriptions. The page notes TanStack Start "is in Release Candidate". Server-side auth guides exist for Clerk and WorkOS only.
+- **Regions** ([Convex, "Regions"](https://docs.convex.dev/production/regions)): `aws-us-east-1` at standard price; Ireland, Sydney and Canada at a 30% surcharge. "An existing deployment's region cannot be changed."
+- **Pricing**: see Cost below.
+
+## Decision
+
+### What runs where
+
+- **Convex** holds all application data and all server logic: ideas and messages, accounts (ADR 0016), and the model call that runs the interview.
+- **Cloudflare Workers** keeps serving the TanStack Start app: server-rendered pages and static assets, as today (ADR 0005). It has no API routes, no database and no secrets of its own once the chat route has moved. Convex does not host TanStack Start's server rendering.
+- The browser talks to Convex directly, through Convex's TanStack Query integration.
+
+### No browser storage of conversations
+
+IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the BroadcastChannel hint and the `persist()` notice. Data already in browsers is dropped without a notice (no users yet). There is no offline mode: every turn needs the model API anyway. Provider keys stay in the browser exactly as ADR 0003 describes; that store is unrelated.
+
+### Data model
+
+- One document per **idea** (the conversation: owner, title, status, timestamps) and one per **message**, keyed by idea and `seq`. One message per document keeps each well under the 1 MiB limit, which a whole conversation in one document could outgrow.
+- ADR 0012 still holds: messages are the source of truth, the tree is derived by `deriveTree`, `seq` is the only order, and messages are append-only. The `nextSeq` and `titleRev` checks of ADR 0013 become checks inside Convex mutations, which run as transactions.
+- Documents hold only what the app needs. Provider keys never appear in any document, argument or log (ADR 0003).
+- Schema changes are backward compatible, as ADR 0009 required for D1: add a field before code uses it, migrate data, then remove the old field only when nothing reads it, because the previous release's code may run against the new schema during a deploy.
+
+### The interview runs in Convex
+
+- The model call moves from `routes/api/chat.ts` to a **Convex HTTP action** that streams the reply to the browser, as the Worker route does today.
+- **The key arrives in a request header, never as a function argument.** An argument to a scheduled function is stored in Convex until the job runs, and an ordinary argument is a value we would have to keep out of every log and error by hand. The log stream schema has no field for HTTP headers. So the browser calls the HTTP action with the key in the `x-byok-<provider>` header, and the action never passes the key to `ctx.scheduler`, `ctx.runMutation`, `ctx.runAction` or a log line.
+- The action checks that the caller is signed in and owns the idea before calling the model, and saves the reply with mutations as it streams, in batches rather than per token.
+- Every rule in `docs/internals/byok-and-secrets.md` carries over: the safe logger, the library logger override, fixed error strings, scrubbed `RUN_ERROR` chunks, the sentinel key test and the lint rules. ADR 0003 and `SECURITY.md` are updated in the PR that moves the route.
+
+### Deployment
+
+- One production Convex deployment, in **`aws-us-east-1`** (standard price; the region cannot be changed later), plus one development deployment per developer or a local backend.
+- On release, Convex functions deploy **before** the Worker, so new pages never call functions that do not exist yet. The deploy key is a secret in the `production` GitHub environment, set by the maintainer, never in chat.
+
+## Cost
+
+Read 2026-11-17 from [Convex pricing](https://www.convex.dev/pricing), its [FAQ](https://www.convex.dev/pricing/faq), and [Cloudflare Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).
+
+|             | Free                                                                                                                                                                                                                                                                                      | Paid                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Convex**  | Free & Starter: 1M function calls, 20 GB-hours of action compute, 0.5 GB database storage, 1 GB database I/O, 1 GB file storage and 1 GB egress per month. Query and mutation compute is free. Free has hard caps; Starter pays per use above them (for example $2.20 per extra 1M calls) | Professional: $25 per developer per month, with 25M calls, 250 GB-hours, 50 GB storage and 50 GB I/O |
+| **Workers** | 100,000 requests per day, 10 ms CPU per invocation, no charge for duration                                                                                                                                                                                                                | $5 per month minimum: 10M requests and 30M CPU-ms included, then $0.30 per extra million requests    |
+
+- On the Free plan, after a limit is hit "new mutations that attempt to commit more insertions or updates may fail", and the FAQ says the deployment "may return HTTP errors" if a limit is exceeded "for an extended period of time". Notification emails come first.
+- Action compute is memory multiplied by time (implied by the log stream docs). Whether the time is wall-clock or CPU time is not stated. If it is wall-clock, a streamed reply that waits on the model is billed for the whole wait.
+- Every reply costs function calls three ways: the action itself, the mutations that save the reply in batches, and the live query that re-runs for each open tab after each batch. **Not measured yet.** The PR that moves the chat measures one reply and records it here.
+- Workers now only serves pages, so it stays well inside its free plan.
+
+## Changes to earlier ADRs
+
+ADRs are immutable (ADR 0001); these notes record what changes and where.
+
+- **ADR 0003 (BYOK):** the documented hop is now Unfold's Convex HTTP action instead of the Worker route. The rules stay; rule 1 now reads "never written to a Convex document, a function argument, a log …". Updated in detail by the chat move.
+- **ADR 0005 (deployment):** adds the Convex deploy before the Worker deploy, and a Convex deploy key. The post-deploy smoke test stays.
+- **ADR 0008 (Better Auth):** superseded. ADR 0016 replaces it: Convex Auth v2 with Google, required before the first chat. Two parts of ADR 0008 still hold: Google is the sign-up method, and provider keys are never stored by the server.
+- **ADR 0011 (testing):** item 3 becomes "the production build with a local Convex backend, no Convex or Cloudflare account". Item 10 (how E2E signs in) is settled by the auth spike (#33) and recorded in ADR 0016.
+- **ADR 0012 (interview model):** unchanged, except that "local storage and sync" means Convex.
+
+## Consequences
+
+- Sync, conflict handling, tombstones and per-browser ownership (ADR 0013, "Open for #36") are no longer problems: there is one copy, and Convex pushes changes to every open tab and device.
+- A reload no longer has to lose a reply in progress, because the server saves it. Whether an HTTP action keeps running after the browser disconnects is **not verified**; if it stops, a reload still loses the unsaved part, and we decide then whether that needs more design.
+- Conversations are stored on our server, tied to the user's account. The privacy note and `SECURITY.md` must say so before this ships.
+- Provider keys now pass through Convex instead of Cloudflare. Users must trust that our Convex functions do not log them; self-hosting stays possible.
+- The IndexedDB work from #28 is removed. The interview logic, `deriveTree`, the savable-prefix logic, the canvas and the UI stay.
+- Development needs a Convex backend: `pnpm dev` runs alongside it (documented in `docs/operations/development.md` when it lands). CI needs one too, local and without secrets.
+- One more vendor and one more deploy step. A Convex outage takes the whole app down except static pages.
+- Not yet verified:
+  - TanStack AI's server `chat()` running inside a Convex HTTP action (Convex runtime or Node runtime), and streaming its output as a `ReadableStream`;
+  - whether an HTTP action outlives the client's disconnect, and its time limit;
+  - whether action compute is billed on wall-clock time;
+  - the real function-call cost of one reply;
+  - running a local Convex backend in CI and E2E, and reaching aimock from it;
+  - the TanStack Query integration under TanStack Start's current version.
