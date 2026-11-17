@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/pragyanfyi/unfold/compare/v0.4.0...v0.5.0) (2026-11-17)
+
+
+### Features
+
+* **canvas:** keyboard navigation, focus handling and an axe pass ([#71](https://github.com/pragyanfyi/unfold/issues/71)) ([90551e9](https://github.com/pragyanfyi/unfold/commit/90551e941bee41c0162e8405928e0bed88864fc9))
+* **canvas:** link chat turns and tree nodes ([#68](https://github.com/pragyanfyi/unfold/issues/68)) ([be4b85d](https://github.com/pragyanfyi/unfold/commit/be4b85dc7f9401409613dbb9b30e9b46c5e3f471))
+* **hotkeys:** add a shortcut registry and the Mod+/ list ([#70](https://github.com/pragyanfyi/unfold/issues/70)) ([4fa2c16](https://github.com/pragyanfyi/unfold/commit/4fa2c16a9a8e5bde514dc5153d2ec33d3c189674))
+
+
+### Bug Fixes
+
+* **deps:** bump lucide-react from 1.70.0 to 1.72.0 ([#64](https://github.com/pragyanfyi/unfold/issues/64)) ([0596a7d](https://github.com/pragyanfyi/unfold/commit/0596a7d7ee8ddd053543388134ccf8650745e14f))
+
 ## [0.4.0](https://github.com/pragyanfyi/unfold/compare/v0.3.0...v0.4.0) (2026-11-16)
 
 
