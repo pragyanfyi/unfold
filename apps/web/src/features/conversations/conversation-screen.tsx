@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type PaneTab, TwoPane } from "#/components/two-pane";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "#/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "#/components/ui/sidebar";
 import { Skeleton } from "#/components/ui/skeleton";
 import { CanvasPane } from "#/features/canvas/canvas-pane";
 import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
@@ -13,6 +13,7 @@ import { conversationKeys, conversationQuery } from "#/features/storage/queries"
 import type { LoadedConversation } from "#/features/storage/types";
 import { isUuid, uuidv7 } from "#/features/storage/uuid";
 import type { Tree } from "#/features/tree/derive-tree";
+import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
 import { SaveNotice } from "./save-notice";
 import { useConversationSaver } from "./use-conversation-saver";
@@ -56,10 +57,7 @@ export function ConversationScreen() {
         }}
       />
       <SidebarInset className="h-dvh min-h-0 overflow-hidden md:h-[calc(100dvh-1rem)]">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-          <SidebarTrigger />
-          <h1 className="text-sm font-medium">Unfold</h1>
-        </header>
+        <AppHeader />
         <div className="min-h-0 flex-1">
           {pathId !== undefined && pathId !== live ? (
             <SavedConversation key={pathId} id={pathId} onNew={startNew} />
