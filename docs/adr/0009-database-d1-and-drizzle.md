@@ -1,6 +1,6 @@
 # 9. Database: Cloudflare D1 with Drizzle
 
-- Status: Accepted
+- Status: Superseded by ADR 0015
 - Date: 2026-11-08
 
 ## Context

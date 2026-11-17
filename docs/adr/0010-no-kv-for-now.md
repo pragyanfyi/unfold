@@ -1,6 +1,6 @@
 # 10. Caching: Workers KV is not used yet
 
-- Status: Accepted
+- Status: Superseded by ADR 0015
 - Date: 2026-11-08
 
 ## Context

@@ -1,6 +1,6 @@
 # 13. Local-first storage of conversations
 
-- Status: Accepted
+- Status: Superseded by ADR 0015
 - Date: 2026-11-09
 
 ## Context

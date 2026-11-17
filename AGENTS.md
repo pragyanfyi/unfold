@@ -8,12 +8,12 @@ Unfold: a chat app where an AI interviews the user about an idea and a decision 
 
 ## Stack and status
 
-- **Decided:** TanStack Start/Query/Hotkeys/AI, React Flow, shadcn/ui (toasts via Sonner), Better Auth with Google sign-in (ADR 0008), Cloudflare D1 + Drizzle (ADR 0009; no KV, ADR 0010), pnpm workspace (no Turborepo), Biome, Vitest, Playwright.
+- **Decided:** TanStack Start/Query/Hotkeys/AI, React Flow, shadcn/ui (toasts via Sonner), Convex as the whole backend: data, the interview's model call, accounts (ADR 0015, proposed); Workers serves the pages only. Convex Auth v2 with Google, required before the first chat, onboarding inside the composer (ADR 0016, proposed). pnpm workspace (no Turborepo), Biome, Vitest, Playwright.
 - **Set up:** shadcn/ui, Tailwind v4 and the Sonner `<Toaster />` (ADR 0004); production deploy to Cloudflare Workers on release (ADR 0005, `docs/operations/deployment.md`).
 - **Built:** BYOK key entry, the server chat route with the interview tools (#26, Anthropic only), the interview chat UI (#27), the decision-tree canvas beside it (#30, React Flow, read-only, animated growth, ADR 0014) linked to the chat by node (#31), and saved conversations in the browser (#28, IndexedDB, ADR 0013): a sidebar to list, open, rename and delete ideas, at `/c/$id`. Keyboard shortcuts from one registry, with a `Mod+/` list, and an accessibility pass: canvas arrow keys, focus handling, axe in E2E (#32, `docs/internals/hotkeys.md`).
 - **Tested:** Playwright + aimock E2E on the production build (`pnpm test:e2e`, ADR 0011, `docs/internals/testing.md`); post-deploy smoke in `deploy-production.yml`.
-- **Not built yet:** auth, database (D1), syncing conversations.
-- **Roadmap:** GitHub milestones `Interview`, `Canvas`, `Accounts and sync` (`gh issue list`); `Foundation` is done. Releases: release-please, see `docs/operations/releasing.md`.
+- **Not built yet:** the move to Convex. Until it lands, conversations still live in IndexedDB (ADR 0013, superseded) and the chat route still runs on the Worker.
+- **Roadmap:** GitHub milestones `Interview`, `Canvas`, `Convex and accounts` (`gh issue list`); `Foundation` is done. Releases: release-please, see `docs/operations/releasing.md`.
 
 ## Layout
 
