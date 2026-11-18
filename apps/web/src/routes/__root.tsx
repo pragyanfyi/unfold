@@ -2,6 +2,7 @@ import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "#/components/ui/sonner";
 import { UpdateNotifier } from "#/features/app-update/update-notifier";
+import { SessionProvider } from "#/features/auth/session";
 import { appHotkeys } from "#/features/hotkeys/registry";
 import appCss from "../styles.css?url";
 
@@ -36,7 +37,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <HotkeysProvider appHotkeys={appHotkeys}>{children}</HotkeysProvider>
+        <SessionProvider>
+          <HotkeysProvider appHotkeys={appHotkeys}>{children}</HotkeysProvider>
+        </SessionProvider>
         <Toaster />
         <UpdateNotifier />
         <Scripts />

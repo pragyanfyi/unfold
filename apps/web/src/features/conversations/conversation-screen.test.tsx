@@ -11,6 +11,7 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FakeSessionProvider } from "#/features/auth/fake-session";
 import type { ConversationStore } from "#/features/storage/store";
 import { uuidv7 } from "#/features/storage/uuid";
 import { ConversationScreen } from "./conversation-screen";
@@ -95,9 +96,11 @@ function renderAt(path: string) {
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+    <FakeSessionProvider>
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </FakeSessionProvider>,
   );
   return router;
 }

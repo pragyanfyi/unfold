@@ -28,7 +28,7 @@ The backend lives in `packages/backend` (`@unfold/backend`), shared by every app
 - To use a cloud development deployment instead, run `pnpm --filter @unfold/backend exec convex dev --configure` once and log in. A configured deployment is kept; the local default applies only before one is chosen.
 - `pnpm --filter @unfold/backend run deploy:check` does what the CI job **Convex deploy check** does: typecheck and push once, then exit. It pushes to whichever deployment `.env.local` names.
 
-The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL`, needed unless the client URL is `<name>.convex.cloud` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. Development's CSP already allows any `http:` and `ws:` connection, so for the local backend you can leave them unset until the web app calls Convex.
+The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL`, needed unless the client URL is `<name>.convex.cloud` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. The app needs them to sign in: `pnpm dev` gets the local backend's (`127.0.0.1:3210` and `:3211`) from the committed `apps/web/.env.development`, and `apps/web/.env.development.local` overrides it, for example to use a cloud development deployment. Plain `.env.local` does not: Vite ranks `.env.[mode]` files above it.
 
 ### Sign-in (Convex Auth)
 
@@ -37,7 +37,7 @@ Accounts use Convex Auth v2 with Google ([ADR 0016](../adr/0016-sign-up-and-onbo
 - `pnpm dev` and `deploy:check` run `scripts/ensure-local-env.mjs` first. It gives the local backend **placeholder** values for any of them that are missing and keeps real ones. With placeholders the backend deploys and the tests run, but Google sign-in does not work.
 - To try real Google sign-in, create a Google OAuth client with the redirect URI `http://127.0.0.1:3211/oauth/google/callback` and set it on the local backend: `pnpm --filter @unfold/backend exec convex env set AUTH_GOOGLE_CLIENT_ID` (and `..._SECRET`), typing the value at the prompt so it stays out of your shell history. Never commit or paste these values.
 - Production's redirect URI is `https://calculating-tern-733.convex.site/oauth/google/callback`. The origins the app may return to are listed in `convex/auth.ts` (`ALLOWED_REDIRECT_ORIGINS`); add an origin there when the app is served from a new one.
-- `E2E_PASSWORD_SIGN_UP=1` turns on the password sign-up that E2E tests use instead of Google. Set it only on the local E2E backend. **Never set it on production**; the deploy workflow fails if it is.
+- `E2E_PASSWORD_SIGN_UP=1` turns on the password sign-up that E2E tests use instead of Google, and lets Google return to the E2E server (`localhost:4173`). Only the E2E backend sets it (`pnpm --filter @unfold/backend run e2e:backend`, which Playwright starts on ports 3230 and 3231, with its own data in `packages/backend/.e2e/`). **Never set it on your dev backend or production**; the deploy workflow fails if it is set on production.
 - `pnpm --filter @unfold/backend test` runs the backend unit tests (`convex-test`, in memory).
 
 Schema changes must stay backward compatible (ADR 0015, Data model): add a field before code uses it, migrate, and remove the old one only when nothing reads it.
@@ -52,7 +52,7 @@ Schema changes must stay backward compatible (ADR 0015, Data model): add a field
 | `pnpm build`         | Production build (also generates `apps/web/src/routeTree.gen.ts`) |
 | `pnpm typecheck`     | TypeScript check. Run after `build` on a fresh checkout           |
 | `pnpm test`          | Unit tests (Vitest)                                               |
-| `pnpm test:e2e`      | Build, then Chromium E2E tests against a fake AI provider         |
+| `pnpm test:e2e`      | E2E build, then Chromium tests (fake AI provider, own Convex)     |
 | `pnpm test:coverage` | Unit test coverage report (no threshold)                          |
 
 CI runs the same steps: lint, build, typecheck, test, plus the Convex deploy check. A separate, not-yet-required `E2E (Playwright)` job runs the E2E tests. The first time, install the browser with `pnpm --filter @unfold/web exec playwright install chromium`. E2E uses a fake AI provider, so it needs no key and no account (see `docs/internals/testing.md`).

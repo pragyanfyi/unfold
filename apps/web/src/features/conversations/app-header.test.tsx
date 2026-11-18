@@ -3,6 +3,7 @@ import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider, useSidebar } from "#/components/ui/sidebar";
+import { FakeSessionProvider } from "#/features/auth/fake-session";
 import { appHotkeys } from "#/features/hotkeys/registry";
 import { AppHeader } from "./app-header";
 
@@ -19,13 +20,15 @@ function press(target: Element | Document, key: string, code: string) {
 
 function renderHeader() {
   render(
-    <HotkeysProvider appHotkeys={appHotkeys} defaultOptions={{ platform: "linux" }}>
-      <SidebarProvider>
-        <AppHeader />
-        <SidebarState />
-        <textarea aria-label="Your idea" />
-      </SidebarProvider>
-    </HotkeysProvider>,
+    <FakeSessionProvider>
+      <HotkeysProvider appHotkeys={appHotkeys} defaultOptions={{ platform: "linux" }}>
+        <SidebarProvider>
+          <AppHeader />
+          <SidebarState />
+          <textarea aria-label="Your idea" />
+        </SidebarProvider>
+      </HotkeysProvider>
+    </FakeSessionProvider>,
   );
 }
 

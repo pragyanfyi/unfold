@@ -61,3 +61,28 @@ describe("password sign-up (E2E only)", () => {
     expect(me).toEqual({ userId: users[0]._id });
   });
 });
+
+describe("allowed redirect origins", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  async function origins() {
+    vi.resetModules();
+    return (await import("../convex/auth")).ALLOWED_REDIRECT_ORIGINS;
+  }
+
+  it("are production and the dev server, exactly, without the E2E switch", async () => {
+    vi.stubEnv("E2E_PASSWORD_SIGN_UP", undefined);
+    expect(await origins()).toEqual([
+      "https://unfold.pragyan-fyi.workers.dev",
+      "http://localhost:3000",
+    ]);
+  });
+
+  it("add the E2E server only on a backend with the switch on", async () => {
+    vi.stubEnv("E2E_PASSWORD_SIGN_UP", "1");
+    expect(await origins()).toContain("http://localhost:4173");
+  });
+});
