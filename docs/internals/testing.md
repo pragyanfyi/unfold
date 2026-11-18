@@ -45,7 +45,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 - CI job `E2E (Playwright)` runs on every PR, retries once and records a trace on that retry. It is **not** in the required `Check` yet. A test that passes only on retry is flaky: open an issue, mark it `test.fixme` with the link.
 - Assert the canvas through `data-testid` (nodes, their text, edges). No screenshot comparison. The layout spec saves screenshots to `test-results/` for a human to look at; it asserts on bounding boxes and visibility, never on pixels.
 - **Layout needs a real browser.** jsdom has no layout engine, so a CSS ordering bug (the Tabs `flex-col` beating `md:flex-row`) passed every component test. Layout rules belong in `e2e/layout.spec.ts`.
-- Signing in: Google cannot run in CI. The approach is decided with the auth work.
+- Signing in: Google cannot run in CI. E2E signs in with a test-only username/password method that works only on a backend with `E2E_PASSWORD_SIGN_UP=1` (ADR 0016). The web side lands after the backend.
 
 ## Required tests
 
