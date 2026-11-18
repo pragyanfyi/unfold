@@ -8,7 +8,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
@@ -18,7 +18,9 @@ import { uuidv7 } from "#/features/storage/uuid";
 import { ConversationScreen } from "./conversation-screen";
 
 // The screen's wiring: which conversation is shown, and what happens around the first save.
-// The chat itself is a stub, and storage is a fake we control, so timing is explicit.
+// The chat itself is a stub, and storage is a fake we control, so timing is explicit. The list
+// of ideas is a live Convex query in the app; here the test's query client answers it from
+// `ideaList`.
 
 const mounts: Array<string> = [];
 vi.mock("#/features/chat/chat-pane", () => ({
@@ -53,8 +55,8 @@ vi.mock("#/features/chat/chat-pane", () => ({
   },
 }));
 
+const ideaList = vi.fn();
 const store = {
-  list: vi.fn(),
   load: vi.fn(),
   create: vi.fn(),
   append: vi.fn(),
@@ -76,9 +78,9 @@ const record = (id: string) => ({
   title: "An idea",
   schemaVersion: 1,
   nextSeq: 1,
-  createdAt: "2026-01-01T00:00:00Z",
+  createdAt: 1_767_225_600_000,
   titleRev: 0,
-  updatedAt: "2026-01-01T00:00:00Z",
+  updatedAt: 1_767_225_600_000,
 });
 
 function renderAt(path: string, session: Session = fakeSession()) {
@@ -98,7 +100,18 @@ function renderAt(path: string, session: Session = fakeSession()) {
     routeTree: root.addChildren([layout.addChildren([index, saved])]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        // Stands in for the Convex query client's `queryFn`, which answers `convexQuery` keys.
+        queryFn: ({ queryKey }) => {
+          if (queryKey[0] !== "convexQuery") throw new Error(`no queryFn for ${String(queryKey)}`);
+          return ideaList();
+        },
+      },
+    },
+  });
   const tree = (current: Session) => (
     <FakeSessionProvider session={current}>
       <QueryClientProvider client={client}>
@@ -113,7 +126,8 @@ function renderAt(path: string, session: Session = fakeSession()) {
 beforeEach(() => {
   mounts.length = 0;
   for (const fn of Object.values(store)) fn.mockReset();
-  store.list.mockResolvedValue([]);
+  ideaList.mockReset();
+  ideaList.mockResolvedValue([]);
   store.create.mockResolvedValue({});
   const noop = class {
     observe() {}
@@ -158,10 +172,12 @@ describe("a new idea", () => {
     await waitFor(async () => expect((await paneText()).split("|")[0]).not.toBe(first));
     const second = (await paneText()).split("|")[0];
 
-    const listReads = store.list.mock.calls.length;
-    write.resolve({});
-    // The save finishing refreshes the list, so this is after the save callback ran.
-    await waitFor(() => expect(store.list.mock.calls.length).toBeGreaterThan(listReads));
+    // Let the save finish, and everything it schedules run, before checking nothing moved.
+    await act(async () => {
+      write.resolve({});
+      await write.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(router.state.location.pathname).toBe("/");
     expect((await paneText()).split("|")[0]).toBe(second);
   });
@@ -233,7 +249,7 @@ describe("signed out (ADR 0016)", () => {
 
   it("signing out closes an open rename, which can no longer act", async () => {
     const id = uuidv7();
-    store.list.mockResolvedValue([record(id)]);
+    ideaList.mockResolvedValue([record(id)]);
     const router = renderAt("/");
     const actions = await screen.findByRole("button", { name: "Actions for An idea" });
     fireEvent.pointerDown(actions, { button: 0, ctrlKey: false, pointerType: "mouse" });

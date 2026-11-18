@@ -11,7 +11,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -24,12 +23,12 @@ import {
   useSidebar,
 } from "#/components/ui/sidebar";
 import { useSession } from "#/features/auth/session";
-import { conversationListQuery, storagePersistedQuery } from "#/features/storage/queries";
+import { conversationListQuery } from "#/features/storage/queries";
 import type { ConversationRecord } from "#/features/storage/types";
 import { DeleteDialog, RenameDialog } from "./conversation-dialogs";
 
-// The list of saved ideas (sidebar-08, inset variant). Everything here is local to this
-// browser (ADR 0013).
+// The list of saved ideas (sidebar-08, inset variant). They are stored in Convex, with the
+// signed-in account (ADR 0015).
 export function AppSidebar({
   onNew,
   onDeleted,
@@ -37,11 +36,9 @@ export function AppSidebar({
   onNew: () => void;
   onDeleted: (id: string) => void;
 }) {
-  // Ideas are shown only to a signed-in user (ADR 0016). They are still kept in this browser
-  // until they move to Convex (#74), so they are not yet tied to the account.
+  // Ideas are shown only to a signed-in user (ADR 0016).
   const { status } = useSession();
-  const list = useQuery({ ...conversationListQuery(), enabled: status === "signed-in" });
-  const persisted = useQuery(storagePersistedQuery());
+  const list = useQuery(conversationListQuery(status === "signed-in"));
   const { id: activeId } = useParams({ strict: false }) as { id?: string };
   const { isMobile, setOpenMobile } = useSidebar();
   const [renaming, setRenaming] = useState<ConversationRecord | null>(null);
@@ -89,11 +86,11 @@ export function AppSidebar({
                 </SidebarMenu>
               ) : list.isError ? (
                 <p role="alert" className="px-2 text-sm text-muted-foreground">
-                  Saved ideas could not be read from this browser. New ideas will not be saved.
+                  Your saved ideas could not be loaded.
                 </p>
               ) : list.data.length === 0 ? (
                 <p className="px-2 text-sm text-muted-foreground">
-                  Ideas you explore are saved here, in this browser.
+                  Ideas you explore are saved here, with your account.
                 </p>
               ) : (
                 <SidebarMenu>
@@ -130,13 +127,6 @@ export function AppSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <p className="px-2 text-xs text-muted-foreground">
-            Saved in this browser only
-            {persisted.data ? "" : ", and the browser may clear it when space runs low"}. Private
-            windows usually lose it when the private session ends.
-          </p>
-        </SidebarFooter>
       </Sidebar>
       <RenameDialog record={renaming} onClose={() => setRenaming(null)} />
       <DeleteDialog record={deleting} onClose={() => setDeleting(null)} onDeleted={onDeleted} />

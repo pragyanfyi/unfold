@@ -38,7 +38,7 @@ pbpaste | gh secret set CONVEX_DEPLOY_KEY --env production --repo pragyanfyi/unf
 
 After the release-tag guard, the workflow checks that `CONVEX_DEPLOY_KEY` is set and stops before building if it is not. No deployment URL is configured anywhere: the CLI takes it from the key.
 
-The Cloudflare token needs no other permissions. The Worker deploy runs no D1 migrations, and conversations are planned to move to Convex, not D1 (ADR 0015); until then they stay in the browser.
+The Cloudflare token needs no other permissions. The Worker deploy runs no migrations: conversations are stored in Convex (ADR 0015), whose schema the Convex deploy pushes.
 
 ## First deploy (one-time, manual) — done 2026-11-08
 

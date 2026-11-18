@@ -1,18 +1,12 @@
-import { toast } from "sonner";
-import { createIdbStore } from "./idb-store";
+import { getConvexClient } from "#/features/auth/convex-client";
+import { createConvexStore } from "./convex-store";
 import type { ConversationStore } from "./store";
 
 let instance: ConversationStore | null = null;
 
-// One store per tab, created on first use in the browser. Never call this during server
-// rendering: there is no IndexedDB there.
+// One store per tab, on the tab's Convex client, so calls carry the signed-in session. Created on
+// first use in the browser; never call this during server rendering.
 export function getConversationStore(): ConversationStore {
-  instance ??= createIdbStore({
-    onVersionChange: () =>
-      toast.error("Unfold was updated in another tab.", {
-        description: "Reload this page to keep saving your conversations.",
-        duration: Number.POSITIVE_INFINITY,
-      }),
-  });
+  instance ??= createConvexStore(getConvexClient());
   return instance;
 }

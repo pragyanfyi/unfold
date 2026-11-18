@@ -101,6 +101,16 @@ Read 2026-11-17 from [Convex pricing](https://www.convex.dev/pricing), its [FAQ]
 - Every reply costs function calls three ways: the action itself, the mutations that write the turn document in batches, and the live query that re-runs for each open tab after each batch. **Not measured yet.** The PR that moves the chat measures one reply and records it here.
 - After the move, Workers only serves pages, so it stays well inside its free plan.
 
+### Built in #74 (storage)
+
+Recorded on 2026-11-19, while building the storage move.
+
+- **Ideas keep their browser-made id.** An idea has a `clientId` (the UUIDv7 the browser already makes) with its own index, and addresses stay `/c/<clientId>`. The screen gives a new idea its address on the first save without remounting the chat, which needs the id before the save returns; a Convex `_id` would arrive only after it.
+- **A message is stored as JSON text** (`message: v.string()`), not as a Convex object. A `UIMessage` can hold a `Date` and keys that Convex does not allow as field names. The append mutation checks that each one parses, has an `id`, a known `role` and `parts`, and is at most 512 KiB.
+- **The turn document waits for #75.** While the chat runs on the Worker, the server never holds a message that is not final: the browser keeps it, as before. The turn document, run ids and statuses are built with the HTTP action that writes them.
+- **The list of ideas is a live query** through `@convex-dev/react-query`, so a change in another tab or on another device shows up without the BroadcastChannel hint. One-off reads and writes go through the existing `ConversationStore` seam.
+- `ownerId` became `v.id("users")` and `message` became a string. Neither is backward compatible in general, but no function had written either table, so no document existed to break.
+
 ## Changes to earlier ADRs
 
 ADRs are immutable (ADR 0001); these notes record what changes and where.

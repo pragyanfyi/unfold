@@ -102,7 +102,7 @@ export function DeleteDialog({
         <DialogHeader>
           <DialogTitle>Delete this idea?</DialogTitle>
           <DialogDescription>
-            “{record?.title}” and its whole conversation are removed from this browser. This cannot
+            “{record?.title}” and its whole conversation are deleted from your account. This cannot
             be undone.
           </DialogDescription>
         </DialogHeader>

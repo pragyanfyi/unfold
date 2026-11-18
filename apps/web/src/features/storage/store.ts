@@ -3,12 +3,11 @@ import type { ConversationRecord, LoadedConversation } from "./types";
 
 // Why a storage call failed. The UI words each one; none of them carries conversation text.
 export type StorageErrorCode =
-  | "conflict" // another tab changed the conversation first
+  | "conflict" // another tab or device changed the conversation first
   | "missing" // the conversation is gone (deleted elsewhere); never recreated
   | "exists" // creating a conversation whose id is taken
   | "too-new" // stored by newer code than this
-  | "quota" // the browser refused the write for space
-  | "unavailable"; // IndexedDB cannot be opened or used
+  | "unavailable"; // the server refused or failed the call
 
 export class StorageError extends Error {
   readonly code: StorageErrorCode;
@@ -19,11 +18,10 @@ export class StorageError extends Error {
   }
 }
 
-// The storage seam. Chat code and tests depend on this, not on IndexedDB (ADR 0013).
+// The storage seam for one-off reads and writes. Chat code and tests depend on this, not on
+// Convex. The list of ideas is a live query instead (`queries.ts`).
 export interface ConversationStore {
-  /** Most recently updated first. */
-  list(): Promise<Array<ConversationRecord>>;
-  /** `null` when there is no such conversation. */
+  /** `null` when the signed-in user has no such conversation. */
   load(id: string): Promise<LoadedConversation | null>;
   /** Fails with `exists` if the id is taken. `messages` are written at seq 0, 1, ... */
   create(input: {

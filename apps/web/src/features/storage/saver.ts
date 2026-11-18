@@ -7,7 +7,7 @@ import { MAX_TITLE_LENGTH } from "./types";
 export type SaveStatus =
   | { kind: "idle" }
   | { kind: "saving" }
-  | { kind: "unsaved"; reason: "quota" | "unavailable" | "too-new" }
+  | { kind: "unsaved"; reason: "unavailable" | "too-new" }
   | { kind: "conflict"; reason: "changed" | "deleted" };
 
 export function titleFromIdea(messages: ReadonlyArray<UIMessage>): string {
@@ -33,9 +33,9 @@ type Options = {
   onSaved: () => void;
 };
 
-// Writes the savable prefix of one conversation, in order, one transaction at a time. It
+// Writes the savable prefix of one conversation, in order, one mutation at a time. It
 // never rewrites or deletes: the prefix only grows. After a storage failure the unsaved
-// messages stay queued and go out as one batch on the next `sync` or `retry` (a transaction
+// messages stay queued and go out as one batch on the next `sync` or `retry` (a mutation
 // is all or nothing, so a retry cannot duplicate or skip messages). After a conflict it stops
 // for good: this tab does not merge, and never recreates a conversation deleted elsewhere.
 export class ConversationSaver {
@@ -102,7 +102,7 @@ export class ConversationSaver {
     } else if (code === "missing") {
       this.stopped = true;
       this.options.onStatus({ kind: "conflict", reason: "deleted" });
-    } else if (code === "quota" || code === "too-new") {
+    } else if (code === "too-new") {
       this.options.onStatus({ kind: "unsaved", reason: code });
     } else {
       this.options.onStatus({ kind: "unsaved", reason: "unavailable" });

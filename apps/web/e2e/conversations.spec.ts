@@ -1,9 +1,10 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
+import { api } from "@unfold/backend/convex/_generated/api.js";
+import { addPasskeyAuthenticator, backendAs, FAKE_KEY, signIn } from "./support";
 
-// Saved conversations (#28, ADR 0013) in a real browser: the app stores them in IndexedDB,
-// lists them in the sidebar, and restores them after a reload. Each test has its own browser
-// context, so its IndexedDB is empty and tests do not see each other's ideas.
+// Saved conversations (#28, #74) in a real browser: the app stores them in the E2E Convex
+// backend, lists them in the sidebar, and restores them after a reload. Each test signs in as a
+// new user, so tests do not see each other's ideas.
 
 async function saveKey(page: Page) {
   await page.getByRole("button", { name: "Add Anthropic API key" }).click();
@@ -17,39 +18,24 @@ async function sendIdea(page: Page, idea: string) {
   await page.getByRole("button", { name: "Send" }).click();
 }
 
-// How many messages the browser has stored, read straight from IndexedDB. A reload before a
-// save has committed would race it, so tests wait for this instead of guessing.
-async function storedMessages(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve, reject) => {
-        const open = indexedDB.open("unfold");
-        open.onerror = () => reject(open.error);
-        open.onsuccess = () => {
-          const db = open.result;
-          if (!db.objectStoreNames.contains("messages")) {
-            db.close();
-            resolve(0);
-            return;
-          }
-          const count = db.transaction("messages").objectStore("messages").count();
-          count.onsuccess = () => {
-            db.close();
-            resolve(count.result);
-          };
-          count.onerror = () => reject(count.error);
-        };
-      }),
-  );
+// How many messages of the idea at the page's address are stored in Convex, read as the
+// signed-in user. A reload before a save has committed would race it, so tests wait for this
+// instead of guessing.
+async function storedMessages(page: Page, accessToken: string) {
+  const id = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  const loaded = await backendAs(accessToken).query(api.ideas.load, { id });
+  return loaded?.messages.length ?? 0;
 }
 
 const chat = (page: Page) => page.getByRole("region", { name: "Interview chat" });
 
 const SAVED_URL = /\/c\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+let accessToken = "";
+
 test.beforeEach(async ({ page }) => {
   await addPasskeyAuthenticator(page);
-  await signIn(page);
+  accessToken = await signIn(page);
   await page.goto("/");
   await saveKey(page);
 });
@@ -65,7 +51,7 @@ test("saves an idea, lists it, and restores the interview after each reload", as
   await expect(page.getByRole("link", { name: idea })).toBeVisible();
 
   // A round still waiting for an answer is not stored, so the reload asks it again.
-  await expect.poll(() => storedMessages(page)).toBe(1);
+  await expect.poll(() => storedMessages(page, accessToken)).toBe(1);
   await page.reload();
   await expect(chat(page).getByText(idea, { exact: true })).toBeVisible();
   const stopped = page.getByRole("alert").filter({ hasText: "The reply stopped" });
@@ -80,7 +66,7 @@ test("saves an idea, lists it, and restores the interview after each reload", as
   await expect(page.getByText("Storage works across reloads.")).toBeVisible();
 
   // An answered round is stored. The reply that followed it was not, so it can be continued.
-  await expect.poll(() => storedMessages(page)).toBe(2);
+  await expect.poll(() => storedMessages(page, accessToken)).toBe(2);
   await page.reload();
   await expect(page.getByText("Asked 1 question")).toBeVisible();
   await expect(page.getByText("Storage works across reloads.")).toBeHidden();
@@ -141,4 +127,5 @@ test("renames and deletes an idea", async ({ page }) => {
   await page.goto(address);
   await expect(page.getByText("Idea not found")).toBeVisible();
   await expect(page.getByText("Ideas you explore are saved here")).toBeVisible();
+  await expect.poll(() => storedMessages(page, accessToken)).toBe(0);
 });

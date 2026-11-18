@@ -72,9 +72,9 @@ describe("ConversationSaver", () => {
 
   it("keeps messages queued after a storage failure and sends them as one batch", async () => {
     const { saver, fail, create, append, statuses } = setup();
-    fail.next = "quota";
+    fail.next = "unavailable";
     await saver.sync([msg("a")]);
-    expect(statuses.at(-1)).toEqual({ kind: "unsaved", reason: "quota" });
+    expect(statuses.at(-1)).toEqual({ kind: "unsaved", reason: "unavailable" });
     await saver.sync([msg("a"), msg("b")]); // still failing
     fail.next = null;
     await saver.retry();
