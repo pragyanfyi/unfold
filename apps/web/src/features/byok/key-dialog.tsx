@@ -45,6 +45,14 @@ export function KeyDialog({
     if (!next) setError(null);
   }
 
+  // Escape, the close button or a click outside. Not while a save runs: the form that started it
+  // must stay to see it finish, or a reopened dialog could start a second save that the first
+  // one's completion would then close.
+  function dismiss(next: boolean) {
+    if (!next && saving) return;
+    onOpenChange(next);
+  }
+
   async function unlock() {
     setBusy(true);
     setError(null);
@@ -71,7 +79,7 @@ export function KeyDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={dismiss}>
       <DialogTrigger asChild>
         <Button variant="outline">
           {status ? `${label} key: ${status.masked}` : `Add ${label} API key`}

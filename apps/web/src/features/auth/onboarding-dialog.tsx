@@ -39,8 +39,11 @@ export function OnboardingDialog({
   onKeySaved: () => void;
 }) {
   const [leaving, setLeaving] = useState(false);
+  // Not dismissed while the key is being saved: the save would otherwise start the interview
+  // after the user had closed the dialog.
+  const [saving, setSaving] = useState(false);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next || !saving) && onOpenChange(next)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Before your first interview</DialogTitle>
@@ -74,7 +77,7 @@ export function OnboardingDialog({
             <p className="text-sm text-muted-foreground">
               <KeysLink />
             </p>
-            <KeyForm byok={byok} onSaved={onKeySaved} />
+            <KeyForm byok={byok} onSaved={onKeySaved} onBusyChange={setSaving} />
           </div>
         ) : null}
       </DialogContent>

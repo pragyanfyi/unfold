@@ -124,4 +124,25 @@ describe("KeyDialog", () => {
     finish();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
+
+  it("cannot be closed while a save runs, so a reopened form cannot start a second one", async () => {
+    let finish = () => {};
+    const save = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const byok = defineByok({ storage: storage({ save }) });
+    render(<KeyDialog byok={byok} />);
+    await openAndType(FAKE_KEY);
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save key" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    finish();
+    // Only the save's own completion closes it.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(save).toHaveBeenCalledTimes(1);
+  });
 });

@@ -745,6 +745,39 @@ describe("ChatPane: onboarding (ADR 0016)", () => {
     expect(fake.pendingResponses()).toBe(0);
   });
 
+  it("cannot be dismissed while the key is being saved", async () => {
+    const { fake, fetchMock } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
+    let finish = () => {};
+    // A store whose save waits until the test lets it finish.
+    const save = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const byok = defineByok({
+      storage: {
+        id: "test",
+        label: "Test",
+        persistent: true,
+        load: () => ({}),
+        save,
+        clear: () => {},
+      },
+    });
+    render(<ChatPane threadId="t1" byok={byok} />);
+    await sendIdea("My idea");
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: FAKE_KEY } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save key" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    finish();
+    expect(await screen.findByText("Let's start.")).toBeTruthy();
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
   it("back from Google with a key ready, starts the idea typed before", async () => {
     const { fake } = stubNetwork([
       { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
