@@ -11,8 +11,8 @@ import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/s
 // - messages are append-only and numbered by `seq`, and an append is refused unless the caller
 //   knows the current `nextSeq` (another tab may have written first);
 // - a rename is refused unless the caller knows the current `titleRev`;
-// - an idea's messages stay under `MAX_IDEA_BYTES` in total, so it can always be loaded and
-//   deleted in one call.
+// - an idea stays under `MAX_IDEA_MESSAGES` messages and `MAX_IDEA_BYTES` bytes, so it can
+//   always be loaded and deleted in one call.
 //
 // Failures are `ConvexError`s whose data is only `{ code }`, never conversation text.
 
@@ -42,6 +42,10 @@ export const MAX_MESSAGES_PER_CALL = 100;
 // all, each in one call, and Convex caps a call at 16 MiB read and 16 MiB returned; half of that
 // leaves room for the rest. An interview is a few hundred KiB, so this is thousands of turns.
 export const MAX_IDEA_BYTES = 8 * 1024 * 1024;
+// The most messages an idea may hold. `load` returns them as one array, which Convex caps at
+// 8,192 elements, and `remove` deletes them in one transaction, which Convex caps in documents
+// read and written; half the array limit leaves room for both. That is about 2,000 turns.
+export const MAX_IDEA_MESSAGES = 4096;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ROLES = new Set(["system", "user", "assistant", "activity"]);
@@ -110,10 +114,14 @@ function checkMessage(json: string): string {
   return id;
 }
 
-// Checks the messages and that the idea stays under its size limit; returns the idea's new size.
-function checkMessages(stored: number, messages: ReadonlyArray<string>): number {
+// Checks the messages and that the idea stays under its limits; returns the idea's new size.
+function checkMessages(
+  stored: { count: number; bytes: number },
+  messages: ReadonlyArray<string>,
+): number {
   if (messages.length > MAX_MESSAGES_PER_CALL) fail("invalid");
-  let bytes = stored;
+  if (stored.count + messages.length > MAX_IDEA_MESSAGES) fail("too-large");
+  let bytes = stored.bytes;
   for (const message of messages) {
     checkMessage(message);
     bytes += byteLength(message);
@@ -189,7 +197,7 @@ export const create = mutation({
       .withIndex("by_client_id", (q) => q.eq("clientId", id))
       .first();
     if (taken) fail("exists");
-    const bytes = checkMessages(0, messages);
+    const bytes = checkMessages({ count: 0, bytes: 0 }, messages);
     const ideaId = await ctx.db.insert("ideas", {
       clientId: id,
       ownerId: userId,
@@ -222,7 +230,7 @@ export const append = mutation({
     if (!idea) fail("missing");
     if (idea.schemaVersion > schemaVersion) fail("too-new");
     if (idea.nextSeq !== expectedNextSeq) fail("conflict");
-    const bytes = checkMessages(idea.bytes, messages);
+    const bytes = checkMessages({ count: idea.nextSeq, bytes: idea.bytes }, messages);
     await insertMessages(ctx, idea._id, idea.nextSeq, messages);
     await ctx.db.patch(idea._id, {
       nextSeq: idea.nextSeq + messages.length,

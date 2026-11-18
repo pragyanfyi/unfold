@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import {
   MAX_IDEA_BYTES,
+  MAX_IDEA_MESSAGES,
   MAX_MESSAGE_BYTES,
   MAX_MESSAGES_PER_CALL,
   MAX_TITLE_LENGTH,
@@ -335,6 +336,39 @@ describe("ideas", () => {
     ).toBe("too-large");
     const loaded = await alice.query(api.ideas.load, { id: ID });
     expect(loaded?.messages).toHaveLength(fits);
+    await alice.mutation(api.ideas.remove, { id: ID });
+    expect(await alice.query(api.ideas.load, { id: ID })).toBeNull();
+  });
+
+  it("caps the number of messages too, so many small ones stay loadable", async () => {
+    const t = backend();
+    const alice = await user(t);
+    const batch = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) => message(`m${from + i}`, "user", "x"));
+    await alice.mutation(api.ideas.create, idea(batch(0, MAX_MESSAGES_PER_CALL)));
+    let stored = MAX_MESSAGES_PER_CALL;
+    while (stored < MAX_IDEA_MESSAGES) {
+      const count = Math.min(MAX_MESSAGES_PER_CALL, MAX_IDEA_MESSAGES - stored);
+      await alice.mutation(api.ideas.append, {
+        id: ID,
+        expectedNextSeq: stored,
+        schemaVersion: 1,
+        messages: batch(stored, count),
+      });
+      stored += count;
+    }
+    expect(
+      await code(
+        alice.mutation(api.ideas.append, {
+          id: ID,
+          expectedNextSeq: stored,
+          schemaVersion: 1,
+          messages: batch(stored, 1),
+        }),
+      ),
+    ).toBe("too-large");
+    const loaded = await alice.query(api.ideas.load, { id: ID });
+    expect(loaded?.messages).toHaveLength(MAX_IDEA_MESSAGES);
     await alice.mutation(api.ideas.remove, { id: ID });
     expect(await alice.query(api.ideas.load, { id: ID })).toBeNull();
   });
