@@ -36,7 +36,7 @@ Unfold has no AI gateway. You supply your own provider API key. Unfold uses the 
 - **Logging:** raw keys must never be logged. The chat route does not log request headers, masks key-shaped text in every log line and error it returns, and replaces the AI library's own error logging with a version that drops the error object. Automated tests and lint rules check this; they cannot prove no path exists.
 - **No server-side key:** the hosted deployment has no fallback key. A request without your key is rejected.
 
-Because keys live in the browser, any cross-site scripting (XSS) flaw could expose them. We therefore send a strict Content-Security-Policy (scripts only from our origin or with a per-response nonce, connections only to our own origin) and treat XSS and CSP gaps as high severity.
+Because keys live in the browser, any cross-site scripting (XSS) flaw could expose them. We therefore send a strict Content-Security-Policy (scripts only from our origin or with a per-response nonce, connections only to our own origin and our own Convex deployment, never a wildcard) and treat XSS and CSP gaps as high severity.
 
 If you self-host Unfold, do not enable any server-side fallback key unless you understand that it changes this model.
 

@@ -73,6 +73,15 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
 - The action checks that the caller is signed in and owns the idea before calling the model, and writes the reply to the idea's turn document (see Data model) as it streams, in batches rather than per token.
 - Every rule in `docs/internals/byok-and-secrets.md` carries over: the safe logger, the library logger override, fixed error strings, scrubbed `RUN_ERROR` chunks, the sentinel key test and the lint rules. ADR 0003 and `SECURITY.md` are updated in the PR that moves the route.
 
+### Where the code lives
+
+Decided on 2026-11-18, while building #35. The Convex functions and schema live in their own workspace package, **`packages/backend`** (`@unfold/backend`, with its `convex/` folder), not inside `apps/web`.
+
+- A native app (Expo) is planned. It must use the same deployment, because one `convex/` folder is one backend: a folder per app would mean two databases. So the backend is shared by design, and every app depends on `@unfold/backend` for the generated API and types.
+- It is a package rather than an app because it has no pages; it is deployed with the Convex CLI from its own folder. This is the layout of Convex's own monorepo template (web, native and a shared `packages/backend`).
+- This is an exception to the rule that a package waits for a second consumer (`AGENTS.md`): the backend is not shared helper code, and moving it after the auth, storage and chat moves would touch every import, the CI check and the deploy.
+- Rejected: `apps/web/convex` now and a move later (the cost above), and `apps/convex` (works, but less common for code other apps import).
+
 ### Deployment
 
 - One production Convex deployment, in **`aws-us-east-1`** (standard price; the region cannot be changed later), plus one development deployment per developer or a local backend.

@@ -1,6 +1,6 @@
 # Deployment
 
-How Unfold reaches Cloudflare, and how to operate it. Decision: [ADR 0005](../adr/0005-production-deployment.md).
+How Unfold reaches Convex and Cloudflare, and how to operate it. Decisions: [ADR 0005](../adr/0005-production-deployment.md), amended by [ADR 0015](../adr/0015-convex-end-to-end-backend.md).
 
 ## Overview
 
@@ -10,14 +10,18 @@ Production deploys when the release-please PR is merged and its GitHub Release i
 | ----------------------------------------- | ----------------------------------------- | -------- | ------------------ |
 | `.github/workflows/deploy-production.yml` | A published GitHub Release, or manual run | `unfold` | `production`       |
 
+The workflow builds the app, deploys the Convex functions in `packages/backend`, then deploys the Worker. Convex goes first, so new pages never call functions that do not exist yet. If the Convex deploy fails, the Worker is not deployed.
+
 There are no PR previews yet (see the ADR for when to revisit).
 
 ## Configuration
 
-| Name                    | Kind     | Where                    | Notes                                                                                                              |
-| ----------------------- | -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `CLOUDFLARE_API_TOKEN`  | Secret   | Environment `production` | Cloudflare API token, **Account → Workers Scripts → Edit**, this account only. Never paste it in chat or an issue. |
-| `CLOUDFLARE_ACCOUNT_ID` | Variable | Repository               | Not a secret.                                                                                                      |
+| Name                    | Kind     | Where                    | Notes                                                                                                                    |
+| ----------------------- | -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `CLOUDFLARE_API_TOKEN`  | Secret   | Environment `production` | Cloudflare API token, **Account → Workers Scripts → Edit**, this account only. Never paste it in chat or an issue.       |
+| `CLOUDFLARE_ACCOUNT_ID` | Variable | Repository               | Not a secret.                                                                                                            |
+| `CONVEX_DEPLOY_KEY`     | Secret   | Environment `production` | Production deploy key of the Convex project (dashboard → Settings → Deploy keys). Never paste it in chat.                |
+| `CONVEX_URL`            | Variable | Environment `production` | The production deployment's client URL, `https://<deployment>.convex.cloud`. Not a secret. The build puts it in the CSP. |
 
 Set the secret without it touching your shell history or a chat, with the token on the clipboard:
 
@@ -27,7 +31,16 @@ pbpaste | gh secret set CLOUDFLARE_API_TOKEN --env production --repo pragyanfyi/
 
 Check names only (values cannot be read back): `gh secret list --env production`. The name must be exactly `CLOUDFLARE_API_TOKEN`. If the list shows anything that looks like a token, the token was typed as the name: revoke it in Cloudflare and start again.
 
-Add D1 permissions (for migrations in CI) to the token only when a change needs them. KV is not used (ADR 0010).
+The same way for Convex, with the deploy key on the clipboard:
+
+```sh
+pbpaste | gh secret set CONVEX_DEPLOY_KEY --env production --repo pragyanfyi/unfold
+gh variable set CONVEX_URL --env production --repo pragyanfyi/unfold --body "https://<deployment>.convex.cloud"
+```
+
+A release fails at its first step until both are set, rather than shipping a page that cannot reach its backend. The `CONVEX_URL` must belong to the deployment the key deploys to; nothing checks that they match.
+
+The Cloudflare token needs no other permissions: all data lives in Convex (ADR 0015).
 
 ## First deploy (one-time, manual) — done 2026-11-08
 
@@ -40,6 +53,10 @@ If you ever need to recreate it: make a temporary directory outside the repo wit
 The account's `workers.dev` subdomain is `pragyan-fyi`, so the Worker answers at `https://unfold.pragyan-fyi.workers.dev`.
 
 Optional hardening: change the CI token to Editor on the single `unfold` Worker instead of account-wide Workers Scripts Edit. Cloudflare does not allow per-Worker access to a Worker that does not exist yet, which is why the order matters.
+
+## Convex project — created 2026-11-18
+
+Project `unfold` in team `pragyan-pandey`, created with the Convex CLI. Its production deployment is `calculating-tern-733` (`https://calculating-tern-733.convex.cloud`), in `aws-us-east-1` (US East, N. Virginia), which cannot be changed later. It is the project's default production deployment, so `convex deploy` targets it. Development uses a local backend (see `docs/operations/development.md`).
 
 ## Rolling back
 

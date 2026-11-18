@@ -6,7 +6,10 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
   const nonce = makeNonce();
   const result = await runWithNonce(nonce, () => next());
   const headers = new Headers(result.response.headers);
-  headers.set("Content-Security-Policy", buildCsp(nonce, { dev: import.meta.env.DEV }));
+  headers.set(
+    "Content-Security-Policy",
+    buildCsp(nonce, { dev: import.meta.env.DEV, connect: __CONVEX_ORIGINS__ }),
+  );
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "no-referrer");
   return new Response(result.response.body, {

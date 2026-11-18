@@ -1,0 +1,17 @@
+{
+  "name": "@unfold/backend",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "CONVEX_AGENT_MODE=anonymous convex dev",
+    "deploy:check": "CONVEX_AGENT_MODE=anonymous convex dev --once --typecheck enable",
+    "typecheck": "tsc --noEmit -p convex"
+  },
+  "dependencies": {
+    "convex": "^1.50.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
