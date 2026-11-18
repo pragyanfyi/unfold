@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY } from "./support";
+import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 
 // The interview chat (#27) in a real browser. The model is aimock: each test sends an idea
 // that carries its own marker (E2E-IDEA-*), so it matches only its own fixtures in
@@ -24,6 +24,7 @@ test.use({ reducedMotion: "reduce" });
 
 test.beforeEach(async ({ page }) => {
   await addPasskeyAuthenticator(page);
+  await signIn(page);
   await page.goto("/");
 });
 
@@ -41,16 +42,17 @@ test("shows the empty state and example ideas that only fill the composer", asyn
   await expect(page.getByRole("form", { name: "Questions for this round" })).toHaveCount(0);
 });
 
-test("asks for a key when sending without one, and keeps the idea", async ({ page }) => {
-  const idea = "E2E-IDEA-JOURNEY no key yet";
-  await sendIdea(page, idea);
+test("asks for a key on send, then starts the interview on its own", async ({ page }) => {
+  await sendIdea(page, "E2E-IDEA-JOURNEY no key yet");
 
-  const dialog = page.getByRole("dialog", { name: "Anthropic API key" });
+  // Signed in without a key: the onboarding dialog opens at its key step (ADR 0016).
+  const dialog = page.getByRole("dialog", { name: "Before your first interview" });
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator("[aria-current=step]")).toHaveText(/Add your key/);
   await dialog.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);
   await dialog.getByRole("button", { name: "Save key" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("textbox", { name: "Your idea" })).toHaveValue(idea);
+  await expect(page.getByRole("form", { name: "Questions for this round" })).toBeVisible();
 });
 
 test("runs an interview: idea, round, answers, next round, finish", async ({ page }, testInfo) => {

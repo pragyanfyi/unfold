@@ -11,7 +11,8 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FakeSessionProvider } from "#/features/auth/fake-session";
+import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
+import type { Session } from "#/features/auth/session";
 import type { ConversationStore } from "#/features/storage/store";
 import { uuidv7 } from "#/features/storage/uuid";
 import { ConversationScreen } from "./conversation-screen";
@@ -25,10 +26,12 @@ vi.mock("#/features/chat/chat-pane", () => ({
     threadId,
     initialMessages,
     onSavable,
+    signInReturnTo,
   }: {
     threadId: string;
     initialMessages?: Array<UIMessage>;
     onSavable?: (messages: Array<UIMessage>) => void;
+    signInReturnTo?: string | null;
   }) => {
     useEffect(() => {
       mounts.push(threadId);
@@ -36,6 +39,7 @@ vi.mock("#/features/chat/chat-pane", () => ({
     return (
       <div>
         <div data-testid="pane">{`${threadId}|${initialMessages?.length ?? 0}`}</div>
+        <div data-testid="return-to">{signInReturnTo ?? ""}</div>
         <button
           type="button"
           onClick={() =>
@@ -77,7 +81,7 @@ const record = (id: string) => ({
   updatedAt: "2026-01-01T00:00:00Z",
 });
 
-function renderAt(path: string) {
+function renderAt(path: string, session: Session = fakeSession()) {
   const root = createRootRoute();
   const layout = createRoute({
     getParentRoute: () => root,
@@ -95,14 +99,15 @@ function renderAt(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <FakeSessionProvider>
+  const tree = (current: Session) => (
+    <FakeSessionProvider session={current}>
       <QueryClientProvider client={client}>
         <RouterProvider router={router} />
       </QueryClientProvider>
-    </FakeSessionProvider>,
+    </FakeSessionProvider>
   );
-  return router;
+  const { rerender } = render(tree(session));
+  return Object.assign(router, { setSession: (next: Session) => rerender(tree(next)) });
 }
 
 beforeEach(() => {
@@ -188,5 +193,55 @@ describe("a saved idea", () => {
     renderAt(`/c/${id}`);
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await paneText()).toBe(`${id}|0`);
+  });
+});
+
+describe("signed out (ADR 0016)", () => {
+  it("on a saved idea's address, goes home and asks to sign in, returning there", async () => {
+    const id = uuidv7();
+    const router = renderAt(`/c/${id}`, fakeSession({ status: "signed-out" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect((await screen.findByTestId("return-to")).textContent).toBe(`/c/${id}`);
+    // Nothing is read from storage for a signed-out user.
+    expect(store.load).not.toHaveBeenCalled();
+    expect(screen.getByText("Sign in to see your ideas.")).toBeTruthy();
+
+    // A new idea leaves that address behind: no sign-in prompt for it any more.
+    fireEvent.click(screen.getByRole("button", { name: "New idea" }));
+    await waitFor(() => expect(screen.getByTestId("return-to").textContent).toBe(""));
+  });
+
+  it("while the session is loading, shows the idea as loading and reads nothing", async () => {
+    renderAt(`/c/${uuidv7()}`, fakeSession({ status: "loading" }));
+    expect(await screen.findByRole("status", { name: "Loading idea" })).toBeTruthy();
+    expect(store.load).not.toHaveBeenCalled();
+  });
+
+  it("signing out starts a new idea at home, with no sign-in prompt", async () => {
+    const id = uuidv7();
+    store.load.mockResolvedValue({ record: record(id), messages: [] });
+    const router = renderAt(`/c/${id}`);
+    expect(await paneText()).toBe(`${id}|0`);
+    // An idea typed but not sent: the next person in this tab must not get it back.
+    sessionStorage.setItem("unfold.pendingIdea", "Someone else's idea");
+    router.setSession(fakeSession({ status: "signed-out" }));
+    await waitFor(() => expect(sessionStorage.getItem("unfold.pendingIdea")).toBeNull());
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect((await paneText()).split("|")[0]).not.toBe(id);
+    expect(screen.getByTestId("return-to").textContent).toBe("");
+  });
+
+  it("signing out closes an open rename, which can no longer act", async () => {
+    const id = uuidv7();
+    store.list.mockResolvedValue([record(id)]);
+    const router = renderAt("/");
+    const actions = await screen.findByRole("button", { name: "Actions for An idea" });
+    fireEvent.pointerDown(actions, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    router.setSession(fakeSession({ status: "signed-out" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(store.rename).not.toHaveBeenCalled();
   });
 });

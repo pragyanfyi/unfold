@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signIn } from "./support";
 
 // The shortcuts in the real app: the provider is mounted in the root route, which the component
 // tests do not render, and real key presses reach it after hydration.
@@ -8,6 +9,7 @@ test.use({ viewport: { width: 1280, height: 800 } });
 test("Mod+/ opens the shortcuts list while typing, and Mod+B hides the sidebar", async ({
   page,
 }) => {
+  await signIn(page);
   await page.goto("/");
   const idea = page.getByRole("textbox", { name: "Your idea" });
   await idea.click();

@@ -5,16 +5,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "#/components/ui/dialog";
-import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
 import { DEFAULT_PROVIDER, PROVIDERS } from "#/features/chat/providers";
+import { ANTHROPIC_KEYS_URL, KeyForm } from "./key-form";
 import { getByok } from "./key-store";
-import { describeSaveError } from "./save-error";
 
 // `open` and `onOpenChange` are optional: the chat opens the dialog when a send is blocked for
 // lack of a key. Without them the dialog manages itself.
@@ -36,33 +33,24 @@ export function KeyDialog({
   const [ownOpen, setOwnOpen] = useState(false);
   const open = controlledOpen ?? ownOpen;
   const setOpen = onControlledOpenChange ?? setOwnOpen;
-  // The key lives in this state only while the dialog is open, and is cleared afterwards.
-  const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A save in the form. The key library does not order a save against a removal, so the
+  // footer's actions wait for it: a removed key must not come back when the save finishes.
+  const [saving, setSaving] = useState(false);
 
   function onOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) {
-      setDraft("");
-      setError(null);
-    }
+    // The form, and the key typed into it, unmounts with the dialog.
+    if (!next) setError(null);
   }
 
-  // The passkey prompt needs a direct user gesture on some browsers (ADR 0003), so each
-  // handler calls the library before awaiting anything else.
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      await byok.update(provider, draft);
-      onOpenChange(false);
-    } catch (caught) {
-      // Nothing was stored. The key stays in the field so the user can retry.
-      setError(describeSaveError(caught).message);
-    } finally {
-      setBusy(false);
-    }
+  // Escape, the close button or a click outside. Not while a save runs: the form that started it
+  // must stay to see it finish, or a reopened dialog could start a second save that the first
+  // one's completion would then close.
+  function dismiss(next: boolean) {
+    if (!next && saving) return;
+    onOpenChange(next);
   }
 
   async function unlock() {
@@ -91,7 +79,7 @@ export function KeyDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={dismiss}>
       <DialogTrigger asChild>
         <Button variant="outline">
           {status ? `${label} key: ${status.masked}` : `Add ${label} API key`}
@@ -105,49 +93,57 @@ export function KeyDialog({
             forwards the request to {label}, but never stores or logs it.{" "}
             {byok.storage.persistent
               ? "It is saved encrypted with a passkey."
-              : "It is kept in memory for this tab only and is gone when you close it."}
+              : "It is kept in memory for this tab only and is gone when you close it."}{" "}
+            <KeysLink />
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          className="grid gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save();
-          }}
-        >
-          <Label htmlFor="byok-key">API key</Label>
-          <Input
-            id="byok-key"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            aria-describedby={error ? "byok-error" : undefined}
-          />
-          {error ? (
-            <p id="byok-error" role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          ) : null}
-          <DialogFooter>
-            {status?.state === "locked" ? (
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void unlock()}>
-                Unlock saved key
-              </Button>
-            ) : null}
-            {status ? (
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void remove()}>
-                Remove key
-              </Button>
-            ) : null}
-            <Button type="submit" disabled={busy || draft.trim().length === 0}>
-              Save key
-            </Button>
-          </DialogFooter>
-        </form>
+        <KeyForm
+          byok={byok}
+          onSaved={() => onOpenChange(false)}
+          message={error}
+          disabled={busy}
+          onBusyChange={setSaving}
+          footer={
+            <>
+              {status?.state === "locked" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || saving}
+                  onClick={() => void unlock()}
+                >
+                  Unlock saved key
+                </Button>
+              ) : null}
+              {status ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || saving}
+                  onClick={() => void remove()}
+                >
+                  Remove key
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Where to get a key. Opens Anthropic's console in a new tab. */
+export function KeysLink() {
+  return (
+    <a
+      href={ANTHROPIC_KEYS_URL}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-foreground underline underline-offset-4"
+    >
+      Create a key at Anthropic (opens in a new tab)
+    </a>
   );
 }

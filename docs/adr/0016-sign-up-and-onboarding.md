@@ -93,6 +93,19 @@ Checked on 2026-11-18 with the #34 backend on a local Convex backend holding the
 - The E2E build is served on `http://localhost:4173`, which `allowedRedirectOrigins` lists only when `E2E_PASSWORD_SIGN_UP=1`. Production's list stays exactly the production origin and `http://localhost:3000`; a backend unit test checks both cases.
 - E2E has its own local Convex backend, started by Playwright, and signs in by creating a password user per test and putting its tokens in `localStorage`. It checks the Google redirect (client id, our callback, PKCE `S256`) and a cancelled sign-in through our callback, but never reaches Google.
 
+### The onboarding flow (#34, second web part)
+
+Built as the Decision describes, in `ChatPane` (the gate and the restore after the redirect), `OnboardingDialog` (the stepper) and `ConversationScreen` (the signed-out address and sign-out). Choices made while building it:
+
+- **A saved key that needs unlocking waits for Enter.** Back from Google with an idea, a key that is ready (`set`) starts the interview at once. A passkey-encrypted key that is `locked` after the reload needs a user gesture for the passkey prompt (ADR 0003), so the idea waits in the composer and the user presses Enter. No key opens the dialog at step 2.
+- **Signing out starts a new, empty idea at `/`**, with no dialog. Only a page that loads signed out on `/c/$id` gets the dialog at step 1, with Google set to return to that address. Provider keys stay in the browser after sign-out: they are not part of the account (Decision, Auth).
+- **The sidebar lists ideas only when signed in**, and does not read them otherwise. Until the storage move (#74) they are still kept per browser, not per account, so someone else signing in on the same browser would see them. #74 ends this.
+- While the session is loading, `/c/$id` shows the loading state and reads nothing.
+- **Step 1 does not yet say ideas are saved to your account**, as the Decision plans: until #74 they are not. It says sign-in is needed before the first interview. #74 restores the planned line.
+- Signing out also clears an unsent idea from `sessionStorage`, and closes an open rename or delete in the sidebar.
+
+E2E covers the whole flow except Google itself (`e2e/onboarding.spec.ts`): the signed-out home, Enter opening step 1, the idea kept across a stubbed Google redirect, step 2 after the return, the interview starting once the key is saved, cancelling, a signed-out `/c/$id`, and signing out. Axe runs on the home and on both dialog steps.
+
 ### Not verified
 
 - How the client behaves when a token refresh fails, or with two tabs signing out.

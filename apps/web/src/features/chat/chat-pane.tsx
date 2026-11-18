@@ -13,6 +13,9 @@ import {
   useMessageScroller,
 } from "#/components/ui/message-scroller";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "#/components/ui/trace";
+import { OnboardingDialog, type OnboardingStep } from "#/features/auth/onboarding-dialog";
+import { clearPendingIdea, readPendingIdea, savePendingIdea } from "#/features/auth/pending-idea";
+import { useSession } from "#/features/auth/session";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
 import type { Tree } from "#/features/tree/derive-tree";
@@ -47,6 +50,7 @@ export function ChatPane({
   selectedId = null,
   onSelect,
   reveal = null,
+  signInReturnTo = null,
   byok = getByok(),
 }: {
   threadId: string;
@@ -64,6 +68,11 @@ export function ChatPane({
   onSelect?: (id: string) => void;
   /** Scrolls the chat to the turn of a node. */
   reveal?: Reveal | null;
+  /**
+   * Set when a signed-out user was sent here from a saved idea's address: the onboarding dialog
+   * opens at sign-in, and Google returns to that address (ADR 0016).
+   */
+  signInReturnTo?: string | null;
   byok?: ReturnType<typeof getByok>;
 }) {
   const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
@@ -94,6 +103,13 @@ export function ChatPane({
 
   const [draft, setDraft] = useState("");
   const [keyOpen, setKeyOpen] = useState(false);
+
+  // Onboarding (ADR 0016): sign in, then add a key, then the interview starts. The step follows
+  // from the session and the key.
+  const session = useSession();
+  const signedIn = session.status === "signed-in";
+  const step: OnboardingStep = !signedIn ? 1 : hasKey ? 3 : 2;
+  const [onboardingOpen, setOnboardingOpen] = useState(signInReturnTo !== null);
 
   const busy = chat.status === "submitted" || chat.status === "streaming";
   // Empty assistant messages are leftovers of a failed turn and are not shown.
@@ -150,7 +166,22 @@ export function ChatPane({
     chat.retry();
   };
 
-  async function send(text: string) {
+  // Enter on the idea. Without a session or a key, the idea waits in the composer (and in
+  // sessionStorage, so it survives the Google redirect) while the onboarding dialog asks for
+  // what is missing. Nothing is sent before then.
+  function send(text: string) {
+    if (session.status === "loading") return;
+    if (!signedIn || !hasKey) {
+      savePendingIdea(text);
+      setDraft(text);
+      setOnboardingOpen(true);
+      return;
+    }
+    void start(text);
+  }
+
+  async function start(text: string) {
+    clearPendingIdea();
     setDraft("");
     try {
       await chat.sendMessage(text);
@@ -165,11 +196,31 @@ export function ChatPane({
     }
   }
 
+  // Back from Google (or a reload) with an idea typed before: it returns to the composer. Signed
+  // in with a key ready, the interview starts, as the user already pressed Enter. With a key
+  // that needs unlocking, the passkey prompt needs a user gesture, so the idea waits for Enter.
+  // Without a key, the dialog asks for one.
+  const restored = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the session is known.
+  useEffect(() => {
+    if (restored.current || session.status === "loading" || initialMessages?.length) return;
+    restored.current = true;
+    const idea = readPendingIdea();
+    if (!idea) return;
+    setDraft(idea);
+    if (session.status !== "signed-in") return;
+    void byok.ready().then(() => {
+      const state = byok.getSnapshot().status[DEFAULT_PROVIDER]?.state;
+      if (state === "set") void start(idea);
+      else if (state !== "locked") setOnboardingOpen(true);
+    });
+  }, [session.status]);
+
   const keyControl = <KeyDialog byok={byok} open={keyOpen} onOpenChange={setKeyOpen} />;
   // Exactly one dialog is mounted, because both are bound to the same open state. It sits in
-  // the empty state when the user has no key, and out of sight otherwise.
+  // the empty state when a signed-in user has no key, and out of sight otherwise.
   const emptyState = visible.length === 0 && !busy;
-  const keyInEmptyState = emptyState && !hasKey;
+  const keyInEmptyState = emptyState && !hasKey && signedIn;
   // When the control the user was on goes away (Send, or a submitted questionnaire), focus
   // goes to the messages while the reply loads. A new questionnaire or finish card then takes
   // it for itself: their effects run before this one (#32).
@@ -184,11 +235,7 @@ export function ChatPane({
     <section aria-label="Interview chat" className="flex h-full min-h-0 flex-col">
       {emptyState ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
-          <EmptyState
-            hasKey={hasKey}
-            keyControl={keyInEmptyState ? keyControl : null}
-            onPick={setDraft}
-          />
+          <EmptyState keyControl={keyInEmptyState ? keyControl : null} onPick={setDraft} />
         </div>
       ) : (
         <MessageScrollerProvider>
@@ -306,13 +353,31 @@ export function ChatPane({
             Stop
           </Button>
         ) : null}
-        {hasKey || visible.length > 0 ? null : (
+        {visible.length > 0 || session.status === "loading" ? null : !signedIn ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Free to use. You sign in with Google, then add your own Anthropic API key.
+          </p>
+        ) : hasKey ? null : (
           <p className="text-center text-xs text-muted-foreground">
             You can type your idea first. Unfold asks for your key when you send it.
           </p>
         )}
       </div>
-      {keyInEmptyState ? null : <div className={hasKey ? "hidden" : "px-4 pb-4"}>{keyControl}</div>}
+      {keyInEmptyState ? null : (
+        <div className={hasKey || emptyState ? "hidden" : "px-4 pb-4"}>{keyControl}</div>
+      )}
+      <OnboardingDialog
+        open={onboardingOpen && step !== 3}
+        onOpenChange={setOnboardingOpen}
+        step={step}
+        byok={byok}
+        onSignIn={() => session.signInWithGoogle(signInReturnTo ?? undefined)}
+        onKeySaved={() => {
+          setOnboardingOpen(false);
+          const text = draft.trim();
+          if (text) void start(text);
+        }}
+      />
     </section>
   );
 }

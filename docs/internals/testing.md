@@ -46,6 +46,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 - Assert the canvas through `data-testid` (nodes, their text, edges). No screenshot comparison. The layout spec saves screenshots to `test-results/` for a human to look at; it asserts on bounding boxes and visibility, never on pixels.
 - **Layout needs a real browser.** jsdom has no layout engine, so a CSS ordering bug (the Tabs `flex-col` beating `md:flex-row`) passed every component test. Layout rules belong in `e2e/layout.spec.ts`.
 - **Signing in:** Google refuses automated browsers and its endpoints are fixed in Convex Auth, so tests never reach it. `signIn(page)` in `e2e/support.ts` creates a new user with the test-only password method (allowed only on a backend with `E2E_PASSWORD_SIGN_UP=1`, ADR 0016) and puts the session where Convex Auth keeps it, in `localStorage`. Call it before the first navigation. One user per test, so parallel tests never share a session or a rotating refresh token.
+- **Onboarding:** `e2e/onboarding.spec.ts` plays the Google return by calling `signIn(page)` and loading `/` again. While a modal dialog is open, role queries cannot see the page behind it; check the composer with `textarea[aria-label="Your idea"]`.
 - **Google sign-in:** `e2e/auth.spec.ts` stops the browser at Google with `page.route` and checks what the app sent (client, callback, PKCE), and plays a cancelled sign-in back through our backend's callback. The real Google round trip is checked by hand (ADR 0016).
 
 ## Required tests
