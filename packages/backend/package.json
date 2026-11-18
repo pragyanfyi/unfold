@@ -4,14 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/convex-dev.mjs",
-    "deploy:check": "node scripts/convex-dev.mjs --once --typecheck enable",
-    "typecheck": "tsc --noEmit -p convex"
+    "dev": "node scripts/ensure-local-env.mjs && node scripts/convex-dev.mjs",
+    "deploy:check": "node scripts/ensure-local-env.mjs && node scripts/convex-dev.mjs --once --typecheck enable",
+    "typecheck": "tsc --noEmit -p convex",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@convex-dev/auth": "2.0.0",
     "convex": "^1.50.0"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "@edge-runtime/vm": "^5.0.0",
+    "@types/node": "^22.20.5",
+    "convex-test": "^0.0.72",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
   }
 }

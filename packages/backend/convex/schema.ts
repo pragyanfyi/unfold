@@ -8,6 +8,10 @@ import { v } from "convex/values";
 // uses it, migrate, and remove the old one only when nothing reads it, because the previous
 // release's functions may run against the new schema during a deploy.
 export default defineSchema({
+  // The signed-in people (ADR 0016). Sessions, Google links and password records live in Convex
+  // Auth's own components, not here.
+  users: defineTable({}),
+
   // One idea is one conversation.
   ideas: defineTable({
     // The signed-in user who owns the idea. Its exact form follows the auth setup (#33, #34).

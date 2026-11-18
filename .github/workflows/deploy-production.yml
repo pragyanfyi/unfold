@@ -62,6 +62,20 @@ jobs:
             exit 1
           fi
 
+      # The E2E-only password sign-up switch must never exist on production (ADR 0016): with it
+      # set, anyone could create a password account. Only names are listed, never values. This
+      # runs before the push, so a bad deployment is not changed.
+      - name: Require E2E_PASSWORD_SIGN_UP to be unset on production
+        working-directory: packages/backend
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          names=$(pnpm exec convex env list --names-only)
+          if printf '%s\n' "$names" | grep -qx 'E2E_PASSWORD_SIGN_UP'; then
+            echo "::error::E2E_PASSWORD_SIGN_UP is set on production. Remove it: npx convex env remove E2E_PASSWORD_SIGN_UP --prod"
+            exit 1
+          fi
+
       # One command builds the app and deploys Convex, in that order (ADR 0005, amended by
       # ADR 0015). The deploy key picks the deployment. The CLI gives the build that deployment's
       # canonical client URL as VITE_CONVEX_URL (--cmd-url-env-var-name) and its HTTP actions URL

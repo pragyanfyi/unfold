@@ -74,14 +74,20 @@ The access and refresh tokens are stored under `__convexAuthJWT_*` and `__convex
 ### E2E signs in with a test-only password method (ADR 0011, item 10)
 
 - In 2.0.0, Google's authorization and token endpoints are constants in the package (`src/components/google/constants.ts`, `AUTHORIZATION_ENDPOINT` and `TOKEN_ENDPOINT`, read 2026-11-18), and `setupGoogle` takes no option to change them (`src/methods/google/server.ts`, `GoogleOptions`). So tests cannot point sign-in at a fake Google without patching the package.
-- **Planned for #34:** the backend will also install the username/password method. Its `createUser` callback will refuse unless the deployment has `E2E_PASSWORD_SIGN_UP=1`, which will be set only on the local E2E backend. Production will never set it, so no password account can be created there, and password sign-in will not succeed.
+- **Built in #34 (backend):** the backend also installs the username/password method. Its `createUser` callback (`createUserFromPassword`) refuses unless the deployment has `E2E_PASSWORD_SIGN_UP=1`, which only the local E2E backend sets. Production never sets it, so no password account can be created there, and password sign-in cannot succeed.
 - The prototype did exactly this. Verified with the switch off (sign-up refused) and on (sign-up, sign-in, staying signed in after a reload, reusing the session in a new browser context through Playwright's `storageState`, sign-out).
-- With this design the password functions will also be deployed to production. #34 will add a check in the deploy workflow that the switch is not set there.
+- With this design the password functions are also deployed to production. The deploy workflow fails, before it pushes anything, if `E2E_PASSWORD_SIGN_UP` is set on production (it lists variable names only, never values). That step has not run against the real deployment yet: it needs the deploy key, so its first run is the next release.
 - `@convex-dev/auth` ships `convex-test` helpers (`registerGoogleOauth`, `registerPassword`) for backend unit tests; they do not sign anyone in through a browser.
+
+### The real Google round trip (#34, backend)
+
+Checked on 2026-11-18 with the #34 backend on a local Convex backend holding the real Google client, `pnpm dev` (the Vite dev server on `localhost:3000`, not the Workers build), and a throwaway page that is not merged. In the maintainer's own browser, with a Google test user: the redirect to Google, the return through `http://127.0.0.1:3211/oauth/google/callback`, the code redemption and `createUserFromGoogle` all worked. The page showed signed in, a new row appeared in `users`, and the session survived a reload.
+
+- Google refuses sign-in in a browser driven by Playwright (it stopped at `accounts.google.com/v3/signin/rejected`), so this check cannot be automated; E2E keeps the password method.
+- Not checked: the same round trip on production (`calculating-tern-733`, the deployed Worker) and under the production CSP. That comes with the web flow.
 
 ### Not verified
 
-- A real Google round trip (callback, code redemption, user creation). It needs a Google OAuth client; #34 tests it.
 - How the client behaves when a token refresh fails, or with two tabs signing out.
 
 ## Consequences
