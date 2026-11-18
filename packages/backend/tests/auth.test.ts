@@ -25,6 +25,8 @@ describe("password sign-up (E2E only)", () => {
     // Convex sets these on every deployment; Convex Auth reads them to issue and check tokens.
     vi.stubEnv("CONVEX_CLOUD_URL", "https://example.convex.cloud");
     vi.stubEnv("CONVEX_SITE_URL", "https://example.convex.site");
+    // Off by default, whatever the shell running the tests has set. Tests turn it on themselves.
+    vi.stubEnv("E2E_PASSWORD_SIGN_UP", undefined);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -54,6 +56,8 @@ describe("password sign-up (E2E only)", () => {
     const result = await t.mutation(api.auth.signUpWithUsernamePassword, credentials);
     if (result.status !== "complete") throw new Error("sign-up did not complete");
     const me = await t.withIdentity(sessionIdentity(result.tokens)).query(api.users.me, {});
-    expect(me?.userId).toBeTruthy();
+    const users = await t.run((ctx) => ctx.db.query("users").collect());
+    expect(users).toHaveLength(1);
+    expect(me).toEqual({ userId: users[0]._id });
   });
 });
