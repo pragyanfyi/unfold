@@ -35,6 +35,9 @@ export function KeyDialog({
   const setOpen = onControlledOpenChange ?? setOwnOpen;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A save in the form. The key library does not order a save against a removal, so the
+  // footer's actions wait for it: a removed key must not come back when the save finishes.
+  const [saving, setSaving] = useState(false);
 
   function onOpenChange(next: boolean) {
     setOpen(next);
@@ -92,13 +95,14 @@ export function KeyDialog({
           onSaved={() => onOpenChange(false)}
           message={error}
           disabled={busy}
+          onBusyChange={setSaving}
           footer={
             <>
               {status?.state === "locked" ? (
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy}
+                  disabled={busy || saving}
                   onClick={() => void unlock()}
                 >
                   Unlock saved key
@@ -108,7 +112,7 @@ export function KeyDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy}
+                  disabled={busy || saving}
                   onClick={() => void remove()}
                 >
                   Remove key

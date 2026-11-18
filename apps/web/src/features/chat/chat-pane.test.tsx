@@ -728,7 +728,7 @@ describe("ChatPane: onboarding (ADR 0016)", () => {
   });
 
   it("starts the interview on its own once the key is saved in the dialog", async () => {
-    const { fetchMock } = stubNetwork([
+    const { fake, fetchMock } = stubNetwork([
       { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
     ]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(false)} />);
@@ -742,14 +742,18 @@ describe("ChatPane: onboarding (ADR 0016)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.getByText("My idea", { selector: "[data-slot=bubble-content]" })).toBeTruthy();
     expect(sessionStorage.getItem(PENDING)).toBeNull();
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("back from Google with a key ready, starts the idea typed before", async () => {
-    stubNetwork([{ text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] }]);
+    const { fake } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
     sessionStorage.setItem(PENDING, "My idea");
     render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
     expect(await screen.findByText("Let's start.")).toBeTruthy();
     expect(sessionStorage.getItem(PENDING)).toBeNull();
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("back from Google without a key, restores the idea and asks for the key", async () => {

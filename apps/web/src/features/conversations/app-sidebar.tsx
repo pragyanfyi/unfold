@@ -46,6 +46,11 @@ export function AppSidebar({
   const { isMobile, setOpenMobile } = useSidebar();
   const [renaming, setRenaming] = useState<ConversationRecord | null>(null);
   const [deleting, setDeleting] = useState<ConversationRecord | null>(null);
+  // Signing out closes an open rename or delete: neither may act once the session has ended.
+  if (status !== "signed-in" && (renaming || deleting)) {
+    setRenaming(null);
+    setDeleting(null);
+  }
   const closeOnMobile = () => {
     if (isMobile) setOpenMobile(false);
   };

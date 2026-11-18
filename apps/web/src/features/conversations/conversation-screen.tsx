@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { SidebarInset, SidebarProvider } from "#/components/ui/sidebar";
 import { Skeleton } from "#/components/ui/skeleton";
+import { clearPendingIdea } from "#/features/auth/pending-idea";
 import { useSession } from "#/features/auth/session";
 import { CanvasPane } from "#/features/canvas/canvas-pane";
 import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
@@ -63,6 +64,8 @@ export function ConversationScreen() {
     lastStatus.current = session.status;
     if (session.status !== "signed-out") return;
     if (was === "signed-in") {
+      // An unsent idea belongs to the person who typed it, not to whoever uses the tab next.
+      clearPendingIdea();
       startNew();
     } else if (pathId !== undefined) {
       setSignInReturnTo(`/c/${pathId}`);

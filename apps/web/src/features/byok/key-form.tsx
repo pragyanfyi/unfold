@@ -19,6 +19,7 @@ export function KeyForm({
   footer,
   message,
   disabled = false,
+  onBusyChange,
 }: {
   byok?: ReturnType<typeof getByok>;
   onSaved?: () => void;
@@ -27,6 +28,8 @@ export function KeyForm({
   /** An error from one of those buttons, shown where a save error would be. */
   message?: string | null;
   disabled?: boolean;
+  /** Told when a save starts and ends, so the footer's own actions can wait for it. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const id = useId();
   const [draft, setDraft] = useState("");
@@ -38,6 +41,7 @@ export function KeyForm({
   // calls the library before awaiting anything else.
   async function save() {
     setBusy(true);
+    onBusyChange?.(true);
     setError(null);
     try {
       await byok.update(DEFAULT_PROVIDER, draft);
@@ -48,6 +52,7 @@ export function KeyForm({
       setError(describeSaveError(caught).message);
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
 

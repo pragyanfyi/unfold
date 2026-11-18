@@ -99,4 +99,29 @@ describe("KeyDialog", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Remove key" }));
     await waitFor(() => expect(byok.keys()).toEqual({}));
   });
+
+  it("keeps Remove and Unlock disabled while a new key is being saved", async () => {
+    let finish = () => {};
+    const saves: unknown[] = [];
+    const store = storage({
+      save: (keys) => {
+        saves.push(keys);
+        // The first save (the existing key) is immediate; the next one waits.
+        if (saves.length === 1) return;
+        return new Promise<void>((resolve) => (finish = resolve));
+      },
+    });
+    const byok = defineByok({ storage: store });
+    await byok.update("anthropic", FAKE_KEY);
+    render(<KeyDialog byok={byok} />);
+    fireEvent.click(await screen.findByRole("button", { name: /anthropic key:/i }));
+    fireEvent.change(await screen.findByLabelText("API key"), {
+      target: { value: "sk-ant-FAKE-SECOND-KEY-0000000000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    const removeButton = screen.getByRole("button", { name: "Remove key" }) as HTMLButtonElement;
+    await waitFor(() => expect(removeButton.disabled).toBe(true));
+    finish();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 });

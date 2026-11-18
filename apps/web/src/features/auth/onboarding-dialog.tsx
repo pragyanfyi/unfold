@@ -46,7 +46,7 @@ export function OnboardingDialog({
           <DialogTitle>Before your first interview</DialogTitle>
           <DialogDescription>
             {step === 1
-              ? "Sign in so your ideas are saved to your account. Google is the only way to sign in."
+              ? "Unfold needs you to sign in before your first interview. Google is the only way to sign in."
               : step === 2
                 ? "Unfold uses your own Anthropic API key. It stays in this browser and is never stored by Unfold."
                 : "Starting your interview."}

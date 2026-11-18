@@ -222,9 +222,26 @@ describe("signed out (ADR 0016)", () => {
     store.load.mockResolvedValue({ record: record(id), messages: [] });
     const router = renderAt(`/c/${id}`);
     expect(await paneText()).toBe(`${id}|0`);
+    // An idea typed but not sent: the next person in this tab must not get it back.
+    sessionStorage.setItem("unfold.pendingIdea", "Someone else's idea");
     router.setSession(fakeSession({ status: "signed-out" }));
+    await waitFor(() => expect(sessionStorage.getItem("unfold.pendingIdea")).toBeNull());
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
     expect((await paneText()).split("|")[0]).not.toBe(id);
     expect(screen.getByTestId("return-to").textContent).toBe("");
+  });
+
+  it("signing out closes an open rename, which can no longer act", async () => {
+    const id = uuidv7();
+    store.list.mockResolvedValue([record(id)]);
+    const router = renderAt("/");
+    const actions = await screen.findByRole("button", { name: "Actions for An idea" });
+    fireEvent.pointerDown(actions, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    router.setSession(fakeSession({ status: "signed-out" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(store.rename).not.toHaveBeenCalled();
   });
 });
