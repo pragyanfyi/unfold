@@ -1,6 +1,7 @@
 # 16. Sign-up with Convex Auth v2, and onboarding on the web
 
 - Status: Proposed
+- Spike: #33, findings below (2026-11-18)
 - Date: 2026-11-17
 - Supersedes: ADR 0008 (Better Auth with Google)
 
@@ -47,11 +48,40 @@ A mobile app, if built, gets its own onboarding; this ADR covers the web only.
 
 When v2 publishes anonymous sign-in, a new ADR may let visitors start without signing up. It must say how a guest's idea moves to their account, how a guest is limited, and how inactive guests are deleted.
 
-## Open (settled by the auth spike, #33)
+## Spike findings (#33)
 
-- That v2's Google sign-in and React client work in a TanStack Start app on Workers, with our CSP (`connect-src`, the redirect).
-- Whether v2's Google flow is a full-page redirect (assumed above) or can use a popup.
-- How E2E tests sign in without Google (ADR 0011, item 10). Recorded here when decided.
+Checked on 2026-11-18 with `@convex-dev/auth` 2.0.0 and `convex` 1.50.0: a prototype on a local Convex backend, served as the production build in the local Workers runtime (`wrangler dev`) with our real CSP, driven by Playwright in Chromium. The prototype is not merged; #34 builds the real thing.
+
+### It works in TanStack Start on Workers, in SPA mode
+
+- The app builds for Workers with the auth client, and the provider renders during server rendering, showing the loading state until the browser takes over. No CSP violations: `connect-src` listing only our deployment's origins (ADR 0015) is enough for queries, mutations and the WebSocket.
+- Only the browser ("SPA") mode applies. Convex Auth's "SSR" mode, which keeps the refresh token in an `httpOnly` cookie, is documented for Next.js only ([Convex Auth, SSR with Next.js](https://docs.convex.dev/auth/convex-auth/ssr-nextjs/setup.md), read 2026-11-18). Convex's TanStack Start quickstart does not mention Convex Auth ([quickstart](https://docs.convex.dev/quickstart/tanstack-start.md), read 2026-11-18). This matches "React client only" above.
+- Setup is the `auth` and `authGoogle` components in `convex.config.ts` (Google under `httpPrefix: "/oauth/google"`; E2E adds `authPassword` and `authUsername`), `auth.config.ts`, `auth.ts`, a `users` table and a `createUser` callback. The backend needs `@types/node` for `process.env`.
+- `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` are declared as required, so **every deployment needs values before it accepts a push**: the local backend and the CI deploy check get placeholders; production gets the real client, set by the maintainer.
+- `allowedRedirectOrigins` must list every origin the app is served from: production and `http://localhost:3000`.
+
+### Google sign-in is a full-page redirect
+
+- There is no popup mode. `startSignInWithGoogle` returns Google's URL (state and PKCE `S256`), and the client navigates there. Google returns to **`<CONVEX_SITE_URL>/oauth/google/callback`**, which sends the browser back to the app with a one-time code that `completeSignInWithGoogle` redeems. These are top-level navigations, so `connect-src` is not involved.
+- Redirect URIs to register with Google: `https://calculating-tern-733.convex.site/oauth/google/callback` for production, and `http://127.0.0.1:3211/oauth/google/callback` for a local backend.
+- The onboarding flow above holds: the typed idea survives the redirect in `sessionStorage`.
+
+### Sessions live in `localStorage`
+
+The access and refresh tokens are stored under `__convexAuthJWT_*` and `__convexAuthRefreshToken_*`. An injected script could take a session as well as a provider key, so the CSP and ADR 0003 rule 5 now protect both. There is no `httpOnly` alternative outside Next.js (see above).
+
+### E2E signs in with a test-only password method (ADR 0011, item 10)
+
+- Convex Auth hard-codes Google's endpoints, so tests cannot point sign-in at a fake Google.
+- Instead the backend also installs the username/password method. Its `createUser` callback **refuses unless the deployment has `E2E_PASSWORD_SIGN_UP=1`**, which is set only on the local E2E backend. Production never sets it, so no password account can exist there, and password sign-in cannot succeed.
+- Verified with the switch off (sign-up refused) and on (sign-up, sign-in, staying signed in after a reload, reusing the session in a new browser context through Playwright's `storageState`, sign-out).
+- The password functions are still deployed to production. #34 adds a check in the deploy workflow that the switch is not set there.
+- `@convex-dev/auth` ships `convex-test` helpers (`registerGoogleOauth`, `registerPassword`) for backend unit tests; they do not sign anyone in through a browser.
+
+### Not verified
+
+- A real Google round trip (callback, code redemption, user creation). It needs a Google OAuth client; #34 tests it.
+- How the client behaves when a token refresh fails, or with two tabs signing out.
 
 ## Consequences
 
