@@ -19,7 +19,7 @@ export function makeNonce(): string {
 
 // The exact origins of our Convex deployment, from the build's `VITE_CONVEX_URL` (the client URL)
 // and `VITE_CONVEX_SITE_URL` (the HTTP actions URL). The site URL may be left out for a
-// `*.convex.cloud` deployment, whose HTTP actions live on the matching `*.convex.site`.
+// `<name>.convex.cloud` deployment, whose HTTP actions live on `<name>.convex.site`.
 // Throws on anything else, so a bad value fails the build instead of shipping a loose policy.
 export function convexOrigins(env: { url?: string; siteUrl?: string }): string[] {
   if (!env.url) {
@@ -27,11 +27,18 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
     return [];
   }
   const client = parseOrigin(env.url, "VITE_CONVEX_URL");
+  const name = deploymentName(client, CLOUD);
   let site: URL;
   if (env.siteUrl) {
     site = parseOrigin(env.siteUrl, "VITE_CONVEX_SITE_URL");
-  } else if (client.hostname.endsWith(".convex.cloud")) {
-    site = new URL(client.origin.replace(/\.convex\.cloud$/, ".convex.site"));
+    // Both on Convex's own domains: they must name the same deployment.
+    const siteName = deploymentName(site, SITE);
+    if (name !== undefined && siteName !== undefined && name !== siteName) {
+      throw new Error("VITE_CONVEX_URL and VITE_CONVEX_SITE_URL name different deployments");
+    }
+  } else if (name !== undefined) {
+    if (client.port) throw new Error("VITE_CONVEX_URL on convex.cloud must use the default port");
+    site = new URL(`https://${name}${SITE}`);
   } else {
     throw new Error("VITE_CONVEX_SITE_URL is required when VITE_CONVEX_URL is not *.convex.cloud");
   }
@@ -39,7 +46,23 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
   return [...new Set([client.origin, socket, site.origin])];
 }
 
-const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const CLOUD = ".convex.cloud";
+const SITE = ".convex.site";
+
+// The deployment name of a URL on one of Convex's own domains, or undefined for any other host.
+function deploymentName(url: URL, domain: string): string | undefined {
+  if (!url.hostname.endsWith(domain)) return undefined;
+  const name = url.hostname.slice(0, -domain.length);
+  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`${url.hostname} is not a Convex deployment`);
+  return name;
+}
+
+// Plain http only for a local backend (development and E2E). IPv6 literals such as [::1] are
+// left out because Chromium does not accept them as CSP sources; use localhost instead.
+const LOOPBACK = new Set(["localhost", "127.0.0.1"]);
+
+// A host the CSP grammar accepts: letters, digits, dots and hyphens (the URL parser lowercases).
+const CSP_HOST = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 
 function parseOrigin(value: string, name: string): URL {
   let url: URL;
@@ -48,12 +71,12 @@ function parseOrigin(value: string, name: string): URL {
   } catch {
     throw new Error(`${name} is not a URL`);
   }
-  // Plain http only for a local backend (development and E2E); anything remote must be https.
   const secure = url.protocol === "https:";
   const local = url.protocol === "http:" && LOOPBACK.has(url.hostname);
   if (!secure && !local) throw new Error(`${name} must be https (or http on localhost)`);
-  if (url.username || url.password || url.hostname.includes("*")) {
-    throw new Error(`${name} must be a plain origin`);
+  if (url.username || url.password) throw new Error(`${name} must be a plain origin`);
+  if (!CSP_HOST.test(url.hostname)) {
+    throw new Error(`${name} has a host the CSP cannot name (use a DNS name or 127.0.0.1)`);
   }
   return url;
 }

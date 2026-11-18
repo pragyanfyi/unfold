@@ -70,6 +70,36 @@ describe("convexOrigins", () => {
     expect(() => convexOrigins({ url: "convex" })).toThrow(/not a URL/);
     expect(() => convexOrigins({ siteUrl: "https://x.convex.site" })).toThrow();
   });
+
+  it("rejects a site URL that names a different Convex deployment", () => {
+    expect(() =>
+      convexOrigins({
+        url: "https://happy-otter-123.convex.cloud",
+        siteUrl: "https://other-fox-456.convex.site",
+      }),
+    ).toThrow(/different deployments/);
+    expect(
+      convexOrigins({
+        url: "https://happy-otter-123.convex.cloud",
+        siteUrl: "https://happy-otter-123.convex.site",
+      }),
+    ).toHaveLength(3);
+  });
+
+  it("does not infer the site of a convex.cloud URL on another port", () => {
+    expect(() => convexOrigins({ url: "https://happy-otter-123.convex.cloud:8443" })).toThrow(
+      /default port/,
+    );
+  });
+
+  it("rejects hosts the browser cannot use as CSP sources", () => {
+    expect(() =>
+      convexOrigins({ url: "https://my_host.example.com", siteUrl: "https://a.example.com" }),
+    ).toThrow(/host/);
+    expect(() =>
+      convexOrigins({ url: "http://[::1]:3210", siteUrl: "http://[::1]:3211" }),
+    ).toThrow();
+  });
 });
 
 describe("makeNonce", () => {

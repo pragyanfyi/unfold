@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "CONVEX_AGENT_MODE=anonymous convex dev",
-    "deploy:check": "CONVEX_AGENT_MODE=anonymous convex dev --once --typecheck enable",
+    "dev": "node scripts/convex-dev.mjs",
+    "deploy:check": "node scripts/convex-dev.mjs --once --typecheck enable",
     "typecheck": "tsc --noEmit -p convex"
   },
   "dependencies": {

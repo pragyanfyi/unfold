@@ -53,28 +53,27 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # The build bakes our Convex deployment's exact origins into the CSP (ADR 0015), so a
-      # release without them would ship a page that cannot reach its backend.
-      - name: Require the Convex deployment URL
+      - name: Require the Convex deploy key
         env:
-          VITE_CONVEX_URL: ${{ vars.CONVEX_URL }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
         run: |
-          if [ -z "$VITE_CONVEX_URL" ]; then
-            echo "::error::Set the CONVEX_URL variable in the production environment."
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "::error::Set the CONVEX_DEPLOY_KEY secret in the production environment."
             exit 1
           fi
-      - name: Build
-        env:
-          VITE_CONVEX_URL: ${{ vars.CONVEX_URL }}
-        run: pnpm run build
 
-      # Convex functions deploy before the Worker, so new pages never call functions that do not
-      # exist yet (ADR 0005, amended by ADR 0015). The deploy key decides the deployment.
-      - name: Deploy Convex functions
+      # One command builds the app and deploys Convex, in that order (ADR 0005, amended by
+      # ADR 0015). The deploy key picks the deployment, and the CLI hands that deployment's URL
+      # to the build as VITE_CONVEX_URL, so the CSP always names the deployment being deployed.
+      # If the build fails, nothing is pushed. Convex goes before the Worker, so new pages never
+      # call functions that do not exist yet.
+      - name: Build, then deploy Convex functions
         working-directory: packages/backend
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-        run: pnpm exec convex deploy --typecheck enable
+        run: >-
+          pnpm exec convex deploy --typecheck enable
+          --cmd 'pnpm -w run build' --cmd-url-env-var-name VITE_CONVEX_URL
 
       - name: Deploy Worker
         working-directory: apps/web

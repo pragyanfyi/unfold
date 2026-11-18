@@ -10,18 +10,17 @@ Production deploys when the release-please PR is merged and its GitHub Release i
 | ----------------------------------------- | ----------------------------------------- | -------- | ------------------ |
 | `.github/workflows/deploy-production.yml` | A published GitHub Release, or manual run | `unfold` | `production`       |
 
-The workflow builds the app, deploys the Convex functions in `packages/backend`, then deploys the Worker. Convex goes first, so new pages never call functions that do not exist yet. If the Convex deploy fails, the Worker is not deployed.
+The workflow runs `convex deploy` in `packages/backend` with `--cmd`, which first builds the app with `VITE_CONVEX_URL` set to the URL of the deployment the deploy key belongs to, then pushes the Convex functions. The Worker deploys last. So the CSP always names the deployment that was deployed, new pages never call functions that do not exist yet, and a failed build or Convex push leaves the Worker as it was.
 
 There are no PR previews yet (see the ADR for when to revisit).
 
 ## Configuration
 
-| Name                    | Kind     | Where                    | Notes                                                                                                                    |
-| ----------------------- | -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `CLOUDFLARE_API_TOKEN`  | Secret   | Environment `production` | Cloudflare API token, **Account → Workers Scripts → Edit**, this account only. Never paste it in chat or an issue.       |
-| `CLOUDFLARE_ACCOUNT_ID` | Variable | Repository               | Not a secret.                                                                                                            |
-| `CONVEX_DEPLOY_KEY`     | Secret   | Environment `production` | Production deploy key of the Convex project (dashboard → Settings → Deploy keys). Never paste it in chat.                |
-| `CONVEX_URL`            | Variable | Environment `production` | The production deployment's client URL, `https://<deployment>.convex.cloud`. Not a secret. The build puts it in the CSP. |
+| Name                    | Kind     | Where                    | Notes                                                                                                              |
+| ----------------------- | -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `CLOUDFLARE_API_TOKEN`  | Secret   | Environment `production` | Cloudflare API token, **Account → Workers Scripts → Edit**, this account only. Never paste it in chat or an issue. |
+| `CLOUDFLARE_ACCOUNT_ID` | Variable | Repository               | Not a secret.                                                                                                      |
+| `CONVEX_DEPLOY_KEY`     | Secret   | Environment `production` | Production deploy key of the Convex project (dashboard → Settings → Deploy keys). Never paste it in chat.          |
 
 Set the secret without it touching your shell history or a chat, with the token on the clipboard:
 
@@ -35,12 +34,11 @@ The same way for Convex, with the deploy key on the clipboard:
 
 ```sh
 pbpaste | gh secret set CONVEX_DEPLOY_KEY --env production --repo pragyanfyi/unfold
-gh variable set CONVEX_URL --env production --repo pragyanfyi/unfold --body "https://<deployment>.convex.cloud"
 ```
 
-A release fails at its first step until both are set, rather than shipping a page that cannot reach its backend. The `CONVEX_URL` must belong to the deployment the key deploys to; nothing checks that they match.
+After the release-tag guard, the workflow checks that `CONVEX_DEPLOY_KEY` is set and stops before building if it is not. No deployment URL is configured anywhere: the CLI takes it from the key.
 
-The Cloudflare token needs no other permissions: all data lives in Convex (ADR 0015).
+The Cloudflare token needs no other permissions. The Worker deploy runs no D1 migrations, and conversations are planned to move to Convex, not D1 (ADR 0015); until then they stay in the browser.
 
 ## First deploy (one-time, manual) — done 2026-11-08
 
@@ -61,6 +59,12 @@ Project `unfold` in team `pragyan-pandey`, created with the Convex CLI. Its prod
 ## Rolling back
 
 Re-run **Deploy production** from an older release tag (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag, not a branch). The first step rejects branches and unpublished tags, or use `pnpm exec wrangler rollback` from `apps/web` while logged in with `wrangler login`.
+
+What each path leaves in Convex:
+
+- **`wrangler rollback` only rolls back the Worker.** Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions.
+- **Re-running an older tag** redeploys that tag's Convex functions too, if its workflow has the Convex step; tags from before Convex deploy only the Worker. A push is refused if the older schema does not match the data already stored, for example a field the older schema does not know.
+- **If the Worker step or the smoke test fails after Convex deployed**, the new functions are live with the old pages, which backward compatibility allows. Fix forward with a new release rather than pushing older Convex code over newer data.
 
 ## Verified
 
