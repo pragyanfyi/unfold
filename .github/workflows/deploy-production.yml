@@ -63,8 +63,10 @@ jobs:
           fi
 
       # One command builds the app and deploys Convex, in that order (ADR 0005, amended by
-      # ADR 0015). The deploy key picks the deployment, and the CLI hands that deployment's URL
-      # to the build as VITE_CONVEX_URL, so the CSP always names the deployment being deployed.
+      # ADR 0015). The deploy key picks the deployment. The CLI gives the build that deployment's
+      # canonical client URL as VITE_CONVEX_URL (--cmd-url-env-var-name) and its HTTP actions URL
+      # as CONVEX_SITE_URL, which the command passes on as VITE_CONVEX_SITE_URL. So the CSP always
+      # names the deployment being deployed, and the site URL is never guessed.
       # If the build fails, nothing is pushed. Convex goes before the Worker, so new pages never
       # call functions that do not exist yet.
       - name: Build, then deploy Convex functions
@@ -73,7 +75,8 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
         run: >-
           pnpm exec convex deploy --typecheck enable
-          --cmd 'pnpm -w run build' --cmd-url-env-var-name VITE_CONVEX_URL
+          --cmd 'VITE_CONVEX_SITE_URL="$CONVEX_SITE_URL" pnpm -w run build'
+          --cmd-url-env-var-name VITE_CONVEX_URL
 
       - name: Deploy Worker
         working-directory: apps/web

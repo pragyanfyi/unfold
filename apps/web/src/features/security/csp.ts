@@ -32,6 +32,9 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
     throw new Error("VITE_CONVEX_URL is the HTTP actions URL; use the .convex.cloud one");
   }
   const name = deploymentName(client, CLOUD);
+  if (name !== undefined && client.port) {
+    throw new Error("VITE_CONVEX_URL on convex.cloud must use the default port");
+  }
   let site: URL;
   if (env.siteUrl) {
     site = parseOrigin(env.siteUrl, "VITE_CONVEX_SITE_URL");
@@ -44,7 +47,6 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
       throw new Error("VITE_CONVEX_URL and VITE_CONVEX_SITE_URL name different deployments");
     }
   } else if (name !== undefined && !name.includes(".")) {
-    if (client.port) throw new Error("VITE_CONVEX_URL on convex.cloud must use the default port");
     site = new URL(`https://${name}${SITE}`);
   } else {
     throw new Error(

@@ -10,7 +10,7 @@ Production deploys when the release-please PR is merged and its GitHub Release i
 | ----------------------------------------- | ----------------------------------------- | -------- | ------------------ |
 | `.github/workflows/deploy-production.yml` | A published GitHub Release, or manual run | `unfold` | `production`       |
 
-The workflow runs `convex deploy` in `packages/backend` with `--cmd`, which first builds the app with `VITE_CONVEX_URL` set to the URL of the deployment the deploy key belongs to, then pushes the Convex functions. The Worker deploys last. So the CSP always names the deployment that was deployed, new pages never call functions that do not exist yet, and a failed build or Convex push leaves the Worker as it was.
+The workflow runs `convex deploy` in `packages/backend` with `--cmd`, which first builds the app with `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` set to the client and HTTP actions URLs of the deployment the deploy key belongs to, then pushes the Convex functions. The Worker deploys last. So the CSP always names the deployment that was deployed, new pages never call functions that do not exist yet, and a failed build or Convex push leaves the Worker as it was.
 
 There are no PR previews yet (see the ADR for when to revisit).
 
@@ -64,8 +64,7 @@ What each path leaves in Convex:
 
 - **`wrangler rollback` only rolls back the Worker.** Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions.
 - **Re-running an older tag** redeploys that tag's Convex functions too, if its workflow has the Convex step; tags from before Convex deploy only the Worker. A push is refused if the older schema does not match the data already stored, for example a field the older schema does not know.
-- **If the Worker deploy fails after Convex deployed**, the old Worker keeps serving, with the new functions, which backward compatibility allows.
-- **If the smoke test fails**, the new Worker is already live (the test runs after `wrangler deploy`, and nothing rolls it back), next to the new functions. First check which Worker version is active (`pnpm exec wrangler deployments list` from `apps/web`), then decide: roll the Worker back with `wrangler rollback`, or fix forward.
+- **If the Worker deploy or the smoke test fails after Convex deployed**, do not assume which Worker is serving: `wrangler deploy` makes the upload live as soon as it succeeds, so a later failure, or a failed smoke test (nothing rolls back), can leave the new Worker live next to the new functions. First check which Worker version is active (`pnpm exec wrangler deployments list` from `apps/web`), then decide: roll the Worker back with `wrangler rollback`, or fix forward. Old pages with new functions are allowed by backward compatibility.
 - In either case, fix forward with a new release rather than pushing older Convex code over newer data.
 
 ## Verified

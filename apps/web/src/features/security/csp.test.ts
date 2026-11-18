@@ -94,7 +94,7 @@ describe("convexOrigins", () => {
       }),
     ).toThrow(/VITE_CONVEX_SITE_URL/);
     expect(() => convexOrigins({ url: "https://happy-otter-123.convex.site" })).toThrow(
-      /VITE_CONVEX_URL/,
+      /VITE_CONVEX_URL is the HTTP actions URL/,
     );
   });
 
@@ -104,7 +104,11 @@ describe("convexOrigins", () => {
         url: "https://calm-cow-456.eu-west-1.convex.cloud",
         siteUrl: "https://calm-cow-456.eu-west-1.convex.site",
       }),
-    ).toHaveLength(3);
+    ).toEqual([
+      "https://calm-cow-456.eu-west-1.convex.cloud",
+      "wss://calm-cow-456.eu-west-1.convex.cloud",
+      "https://calm-cow-456.eu-west-1.convex.site",
+    ]);
     expect(() => convexOrigins({ url: "https://calm-cow-456.eu-west-1.convex.cloud" })).toThrow(
       /VITE_CONVEX_SITE_URL is required/,
     );
@@ -120,6 +124,12 @@ describe("convexOrigins", () => {
     expect(() => convexOrigins({ url: "https://happy-otter-123.convex.cloud:8443" })).toThrow(
       /default port/,
     );
+    expect(() =>
+      convexOrigins({
+        url: "https://calm-cow-456.eu-west-1.convex.cloud:8443",
+        siteUrl: "https://calm-cow-456.eu-west-1.convex.site",
+      }),
+    ).toThrow(/default port/);
   });
 
   it("rejects hosts the browser cannot use as CSP sources", () => {
