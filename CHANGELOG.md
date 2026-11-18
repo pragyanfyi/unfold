@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/pragyanfyi/unfold/compare/v0.5.0...v0.6.0) (2026-11-18)
+
+
+### Features
+
+* **db:** add the Convex backend package, schema and CI check ([#76](https://github.com/pragyanfyi/unfold/issues/76)) ([6be45af](https://github.com/pragyanfyi/unfold/commit/6be45afa13452084e3638274c3606b045bc655bf))
+
 ## [0.5.0](https://github.com/pragyanfyi/unfold/compare/v0.4.0...v0.5.0) (2026-11-17)
 
 
