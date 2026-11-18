@@ -30,6 +30,11 @@ If you change anything that alters this, update ADR 0003 and `SECURITY.md` in th
 9. Use the library's key helpers rather than custom key storage or crypto.
 10. Handle a failed key save explicitly (`describeSaveError`, `key-dialog.tsx`). Per the TanStack AI docs, the memory-only fallback applies only when WebAuthn is unavailable. If WebAuthn is available but the authenticator lacks PRF support, the first save throws (a rejected promise from `byok.update()`), and the docs describe no way to detect this in advance. Catch the error, show a clear message, and never silently store the key anywhere else. Any decision to offer a memory-only option on this failure needs an ADR 0003 update first.
 
+## Sessions
+
+- Convex Auth keeps the session's access and refresh tokens in `localStorage` (`__convexAuthJWT_*`, `__convexAuthRefreshToken_*`; ADR 0016). That is the library's own store, like the BYOK keyring. Treat the tokens like a key: never read, log or copy them in app code, and never send them anywhere but our own Convex deployment. The CSP and rule 7 protect them as they protect keys.
+- `E2E_PASSWORD_SIGN_UP` is a test-only switch for the local E2E backend. Never set it on production or a shared deployment.
+
 ## Repo secrets
 
 - Secrets for CI and deployment live in GitHub Actions secrets or variables, never in the repo.

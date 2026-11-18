@@ -86,6 +86,13 @@ Checked on 2026-11-18 with the #34 backend on a local Convex backend holding the
 - Google refuses sign-in in a browser driven by Playwright (it stopped at `accounts.google.com/v3/signin/rejected`), so this check cannot be automated; E2E keeps the password method.
 - Not checked: the same round trip on production (`calculating-tern-733`, the deployed Worker) and under the production CSP. That comes with the web flow.
 
+### The web session (#34, first web part)
+
+- The app wraps every page in `ConvexAuthProvider` (browser mode) behind its own `SessionProvider` (`features/auth/session.tsx`), so components and tests read one small `useSession()` and never Convex Auth directly. Sign in and Sign out sit in the header.
+- A flow that comes back from Google with an error (cancelled, expired, invalid) shows a fixed message, never the library's error.
+- The E2E build is served on `http://localhost:4173`, which `allowedRedirectOrigins` lists only when `E2E_PASSWORD_SIGN_UP=1`. Production's list stays exactly the production origin and `http://localhost:3000`; a backend unit test checks both cases.
+- E2E has its own local Convex backend, started by Playwright, and signs in by creating a password user per test and putting its tokens in `localStorage`. It checks the Google redirect (client id, our callback, PKCE `S256`) and a cancelled sign-in through our callback, but never reaches Google.
+
 ### Not verified
 
 - How the client behaves when a token refresh fails, or with two tabs signing out.

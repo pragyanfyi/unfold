@@ -9,9 +9,12 @@ export const { signOut, refreshSession, isAuthenticated } = auth;
 
 // Every origin the app is served from. Google sends the browser back to one of these, and a
 // request naming any other origin is refused. Add an origin here when the app gets a new one.
+// The E2E build is served on localhost:4173; it is allowed only on a backend with the E2E switch,
+// never on production (the deploy workflow checks that the switch is off there).
 export const ALLOWED_REDIRECT_ORIGINS = [
   "https://unfold.pragyan-fyi.workers.dev",
   "http://localhost:3000",
+  ...(process.env.E2E_PASSWORD_SIGN_UP === "1" ? ["http://localhost:4173"] : []),
 ];
 
 export const { startSignInWithGoogle, completeSignInWithGoogle } = setupGoogle(auth, {

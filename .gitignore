@@ -15,6 +15,9 @@ test-results/
 .env
 .env.*
 !.env.example
+# Loopback Convex URLs for `pnpm dev` and the E2E build, no secrets
+!apps/web/.env.development
+!apps/web/.env.e2e
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
@@ -35,8 +38,9 @@ pnpm-debug.log*
 # Claude Code local settings
 .claude/settings.local.json
 
-# Local Convex backend data (packages/backend)
+# Local Convex backend data (packages/backend), and the E2E backend's project
 .convex/
+packages/backend/.e2e/
 
 # TanStack / Nitro caches
 .tanstack/

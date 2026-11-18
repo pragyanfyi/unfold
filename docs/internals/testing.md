@@ -37,7 +37,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 
 ## E2E
 
-- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider. No Cloudflare account or secrets. There is no server database yet; when D1 is bound (ADR 0009), the same local runtime provides a local D1. Saved conversations live in the browser's IndexedDB (ADR 0013); each test has its own browser context, so each starts empty.
+- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider and a local Convex backend of its own (ports 3230 and 3231, a fresh database each run, `packages/backend/scripts/e2e-backend.mjs`). No Cloudflare or Convex account, no secrets. The app is built with `build:e2e` (`vite build --mode e2e`), which points it at that backend through `apps/web/.env.e2e`. Saved conversations live in the browser's IndexedDB (ADR 0013); each test has its own browser context, so each starts empty.
 - Run `pnpm test:e2e` from the repo root (it builds first). Specs are in `apps/web/e2e`. Vitest does not run them, and Playwright does not run `src`.
 - The app is served at `http://localhost:4173`, not `127.0.0.1`: WebAuthn rejects an IP address as the origin.
 - **Passkeys:** saving a key uses a passkey whose PRF output encrypts it (ADR 0003). Chromium's virtual authenticator supports PRF (`hasPrf: true`, see `e2e/support.ts`), so tests can save a key through the real dialog. Add it before the first navigation.
@@ -45,7 +45,8 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 - CI job `E2E (Playwright)` runs on every PR, retries once and records a trace on that retry. It is **not** in the required `Check` yet. A test that passes only on retry is flaky: open an issue, mark it `test.fixme` with the link.
 - Assert the canvas through `data-testid` (nodes, their text, edges). No screenshot comparison. The layout spec saves screenshots to `test-results/` for a human to look at; it asserts on bounding boxes and visibility, never on pixels.
 - **Layout needs a real browser.** jsdom has no layout engine, so a CSS ordering bug (the Tabs `flex-col` beating `md:flex-row`) passed every component test. Layout rules belong in `e2e/layout.spec.ts`.
-- Signing in: Google cannot run in CI. **Planned** (ADR 0016): E2E will sign in with a test-only username/password method that works only on a backend with `E2E_PASSWORD_SIGN_UP=1`. The backend side exists and has unit tests; E2E does not run against Convex yet, so this path is untested end to end until the sign-in UI lands (#34).
+- **Signing in:** Google refuses automated browsers and its endpoints are fixed in Convex Auth, so tests never reach it. `signIn(page)` in `e2e/support.ts` creates a new user with the test-only password method (allowed only on a backend with `E2E_PASSWORD_SIGN_UP=1`, ADR 0016) and puts the session where Convex Auth keeps it, in `localStorage`. Call it before the first navigation. One user per test, so parallel tests never share a session or a rotating refresh token.
+- **Google sign-in:** `e2e/auth.spec.ts` stops the browser at Google with `page.route` and checks what the app sent (client, callback, PKCE), and plays a cancelled sign-in back through our backend's callback. The real Google round trip is checked by hand (ADR 0016).
 
 ## Required tests
 

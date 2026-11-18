@@ -7,7 +7,8 @@
     "dev": "node scripts/ensure-local-env.mjs && node scripts/convex-dev.mjs",
     "deploy:check": "node scripts/ensure-local-env.mjs && node scripts/convex-dev.mjs --once --typecheck enable",
     "typecheck": "tsc --noEmit -p convex",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e:backend": "node scripts/e2e-backend.mjs"
   },
   "dependencies": {
     "@convex-dev/auth": "2.0.0",

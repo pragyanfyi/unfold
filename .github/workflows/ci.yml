@@ -82,7 +82,9 @@ jobs:
           fi
 
   # End-to-end tests in Chromium against the production build in the local Workers runtime,
-  # with the AI provider replaced by aimock (ADR 0011). Runs on every PR but is NOT part of
+  # with the AI provider replaced by aimock (ADR 0011) and a local Convex backend of its own
+  # (ADR 0016): Playwright starts it, with placeholder Google values and the test-only password
+  # sign-up switched on. Runs on every PR but is NOT part of
   # `check` yet: it becomes required only after it has proven stable.
   e2e:
     name: E2E (Playwright)
@@ -98,7 +100,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+      # Pointed at the E2E Convex backend that Playwright starts (apps/web/.env.e2e).
+      - run: pnpm --filter @unfold/web run build:e2e
       # No `--with-deps`: the runner image already has the libraries Chromium needs, and the
       # flag only added fonts through apt, which fails the job when the package mirror is down.
       - name: Install Chromium

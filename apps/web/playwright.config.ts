@@ -1,8 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E runs against the production build in the local Workers runtime (wrangler dev on the
-// build output), with the AI provider replaced by aimock (ADR 0011). No Cloudflare account,
-// no secrets, no real provider. `pnpm test:e2e` builds first; CI builds in an earlier step.
+// build output), with the AI provider replaced by aimock (ADR 0011) and its own local Convex
+// backend (ADR 0016). No Cloudflare or Convex account, no secrets, no real provider.
+// `pnpm test:e2e` builds first (`build:e2e`, pointed at that backend by `.env.e2e`); CI builds
+// in an earlier step.
 const APP_PORT = 4173;
 const MOCK_PORT = 4010;
 
@@ -24,6 +26,14 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
+    {
+      // A fresh Convex backend on ports 3230/3231 with the test-only password sign-up on.
+      // The CLI reports readiness on stderr.
+      command: "pnpm --filter @unfold/backend run e2e:backend",
+      wait: { stderr: /Convex functions ready!/ },
+      timeout: 120_000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
+    },
     {
       // Strict: a request no fixture matches is an error, never a silent default reply.
       command: `pnpm exec llmock --fixtures e2e/fixtures --strict --port ${MOCK_PORT} --log-level warn`,
