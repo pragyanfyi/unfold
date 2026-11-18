@@ -62,9 +62,10 @@ Checked on 2026-11-18 with `@convex-dev/auth` 2.0.0 and `convex` 1.50.0: a proto
 
 ### Google sign-in is a full-page redirect
 
-- There is no popup mode. `startSignInWithGoogle` returns Google's URL (state and PKCE `S256`), and the client navigates there. Google returns to **`<CONVEX_SITE_URL>/oauth/google/callback`**, which sends the browser back to the app with a one-time code that `completeSignInWithGoogle` redeems. These are top-level navigations, so `connect-src` is not involved.
+- The 2.0.0 web client offers only a redirect: starting a flow resolves to `{ status: "redirect", redirect }` and "navigates away to the identity provider"; the comments say React Native opens the URL in an in-app browser instead. No popup option appears in that API (`@convex-dev/auth` 2.0.0 source, `src/methods/oauth/client.ts`, `OauthStartResult` and `OauthActions`, read 2026-11-18). A later version could add one.
+- In the prototype, `startSignInWithGoogle` returned Google's URL with a state and PKCE `S256`, and the client navigated there. Google returns to **`<CONVEX_SITE_URL>/oauth/google/callback`**, which sends the browser back to the app with a one-time code that `completeSignInWithGoogle` redeems. These are top-level navigations, so `connect-src` is not involved.
 - Redirect URIs to register with Google: `https://calculating-tern-733.convex.site/oauth/google/callback` for production, and `http://127.0.0.1:3211/oauth/google/callback` for a local backend.
-- The onboarding flow above holds: the typed idea survives the redirect in `sessionStorage`.
+- The onboarding flow above is consistent with this: it already plans to keep the typed idea in `sessionStorage` across the redirect. The whole flow, including Google's callback, the code redemption and user creation, is **not tested yet**; #34 tests it.
 
 ### Sessions live in `localStorage`
 
@@ -72,10 +73,10 @@ The access and refresh tokens are stored under `__convexAuthJWT_*` and `__convex
 
 ### E2E signs in with a test-only password method (ADR 0011, item 10)
 
-- Convex Auth hard-codes Google's endpoints, so tests cannot point sign-in at a fake Google.
-- Instead the backend also installs the username/password method. Its `createUser` callback **refuses unless the deployment has `E2E_PASSWORD_SIGN_UP=1`**, which is set only on the local E2E backend. Production never sets it, so no password account can exist there, and password sign-in cannot succeed.
-- Verified with the switch off (sign-up refused) and on (sign-up, sign-in, staying signed in after a reload, reusing the session in a new browser context through Playwright's `storageState`, sign-out).
-- The password functions are still deployed to production. #34 adds a check in the deploy workflow that the switch is not set there.
+- In 2.0.0, Google's authorization and token endpoints are constants in the package (`src/components/google/constants.ts`, `AUTHORIZATION_ENDPOINT` and `TOKEN_ENDPOINT`, read 2026-11-18), and `setupGoogle` takes no option to change them (`src/methods/google/server.ts`, `GoogleOptions`). So tests cannot point sign-in at a fake Google without patching the package.
+- **Planned for #34:** the backend will also install the username/password method. Its `createUser` callback will refuse unless the deployment has `E2E_PASSWORD_SIGN_UP=1`, which will be set only on the local E2E backend. Production will never set it, so no password account can be created there, and password sign-in will not succeed.
+- The prototype did exactly this. Verified with the switch off (sign-up refused) and on (sign-up, sign-in, staying signed in after a reload, reusing the session in a new browser context through Playwright's `storageState`, sign-out).
+- With this design the password functions will also be deployed to production. #34 will add a check in the deploy workflow that the switch is not set there.
 - `@convex-dev/auth` ships `convex-test` helpers (`registerGoogleOauth`, `registerPassword`) for backend unit tests; they do not sign anyone in through a browser.
 
 ### Not verified
