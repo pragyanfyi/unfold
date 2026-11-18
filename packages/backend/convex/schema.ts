@@ -36,8 +36,7 @@ export default defineSchema({
     .index("by_client_id", ["clientId"]),
 
   // One final message per document, append-only, ordered only by `seq`. Messages still
-  // streaming or waiting for an answer live in the idea's turn document, which arrives with
-  // the chat move (#75), not here.
+  // streaming or waiting for an answer live in the idea's turn document (`turns`), not here.
   messages: defineTable({
     ideaId: v.id("ideas"),
     // 0-based and contiguous within the idea.
@@ -49,4 +48,21 @@ export default defineSchema({
     // `ideas.ts` checks it on the way in.
     message: v.string(),
   }).index("by_idea_seq", ["ideaId", "seq"]),
+
+  // The idea's message that is not final yet (ADR 0015, Data model): a reply still streaming, or
+  // one waiting for the user's answer. At most one per idea, owned by one run (`turns.ts`).
+  turns: defineTable({
+    ideaId: v.id("ideas"),
+    // The run that owns the turn. Only that run may write it, and only while `running`.
+    runId: v.string(),
+    // `running`: the action is streaming. `waiting`: the run ended with a round or finish
+    // proposal that needs the user's answer. `interrupted`: the run failed, was stopped, or went
+    // quiet; the next run replaces the turn.
+    status: v.union(v.literal("running"), v.literal("waiting"), v.literal("interrupted")),
+    // The chat library's `UIMessage` as JSON text, as in `messages.message`. Absent until the
+    // run's first batch.
+    message: v.optional(v.string()),
+    // The run's last write, in ms since the epoch. The scheduled check reads it.
+    lastWriteAt: v.number(),
+  }).index("by_idea", ["ideaId"]),
 });
