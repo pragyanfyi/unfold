@@ -32,8 +32,17 @@ const require = createRequire(import.meta.url);
 const manifest = require.resolve("convex/package.json");
 const cli = join(dirname(manifest), require(manifest).bin.convex);
 const env = { ...process.env, CONVEX_AGENT_MODE: "anonymous" };
-// Ignore a deployment chosen in the shell: this project picks its own.
-delete env.CONVEX_DEPLOYMENT;
+// Ignore any deployment or deploy key set in the shell: each would make the CLI push to that
+// deployment instead of this project's own local one.
+for (const name of [
+  "CONVEX_DEPLOYMENT",
+  "CONVEX_DEPLOY_KEY",
+  "CONVEX_DEPLOYMENT_TOKEN",
+  "CONVEX_SELF_HOSTED_URL",
+  "CONVEX_SELF_HOSTED_ADMIN_KEY",
+]) {
+  delete env[name];
+}
 const ports = [
   "--local-cloud-port",
   String(E2E_CLOUD_PORT),

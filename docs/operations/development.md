@@ -28,7 +28,7 @@ The backend lives in `packages/backend` (`@unfold/backend`), shared by every app
 - To use a cloud development deployment instead, run `pnpm --filter @unfold/backend exec convex dev --configure` once and log in. A configured deployment is kept; the local default applies only before one is chosen.
 - `pnpm --filter @unfold/backend run deploy:check` does what the CI job **Convex deploy check** does: typecheck and push once, then exit. It pushes to whichever deployment `.env.local` names.
 
-The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL`, needed unless the client URL is `<name>.convex.cloud` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. The app needs them to sign in: `pnpm dev` gets the local backend's (`127.0.0.1:3210` and `:3211`) from the committed `apps/web/.env.development`, and `apps/web/.env.local` overrides it, for example to use a cloud development deployment.
+The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL`, needed unless the client URL is `<name>.convex.cloud` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. The app needs them to sign in: `pnpm dev` gets the local backend's (`127.0.0.1:3210` and `:3211`) from the committed `apps/web/.env.development`, and `apps/web/.env.development.local` overrides it, for example to use a cloud development deployment. Plain `.env.local` does not: Vite ranks `.env.[mode]` files above it.
 
 ### Sign-in (Convex Auth)
 
