@@ -24,7 +24,10 @@
   ],
   "packages": {
     ".": {
-      "extra-files": [{ "type": "json", "path": "apps/web/package.json", "jsonpath": "$.version" }]
+      "extra-files": [
+        { "type": "json", "path": "apps/web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/backend/package.json", "jsonpath": "$.version" }
+      ]
     }
   }
 }

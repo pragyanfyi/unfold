@@ -35,6 +35,9 @@ pnpm-debug.log*
 # Claude Code local settings
 .claude/settings.local.json
 
+# Local Convex backend data (packages/backend)
+.convex/
+
 # TanStack / Nitro caches
 .tanstack/
 .nitro/

@@ -51,6 +51,36 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run test
 
+  # Deploys the Convex schema and functions to a disposable local backend (ADR 0015): no Convex
+  # account and no secrets. Fails when they do not typecheck or deploy, or when the committed
+  # generated code in convex/_generated is out of date.
+  convex:
+    name: Convex deploy check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy to a local Convex backend
+        run: pnpm --filter @unfold/backend run deploy:check
+      # Fails on changed and on new untracked files, so a generated file missing from the PR
+      # cannot pass.
+      - name: Generated code is committed and current
+        run: |
+          changes=$(git status --porcelain --untracked-files=all -- packages/backend/convex/_generated)
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            echo "::error::Run \`pnpm dev\` (or deploy:check) in packages/backend and commit convex/_generated."
+            exit 1
+          fi
+
   # End-to-end tests in Chromium against the production build in the local Workers runtime,
   # with the AI provider replaced by aimock (ADR 0011). Runs on every PR but is NOT part of
   # `check` yet: it becomes required only after it has proven stable.
@@ -99,7 +129,7 @@ jobs:
   check:
     name: Check
     if: always()
-    needs: [lint, build]
+    needs: [lint, build, convex]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

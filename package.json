@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm --filter @unfold/web dev",
+    "dev": "pnpm --parallel --filter @unfold/web --filter @unfold/backend run dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

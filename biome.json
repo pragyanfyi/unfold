@@ -13,7 +13,8 @@
       "!**/pnpm-lock.yaml",
       "!**/CHANGELOG.md",
       "!**/.tanstack",
-      "!**/.wrangler"
+      "!**/.wrangler",
+      "!**/convex/_generated"
     ]
   },
   "formatter": {

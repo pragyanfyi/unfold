@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to Cloudflare Workers
+    name: Deploy Convex and Cloudflare Workers
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production
@@ -52,9 +52,33 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
 
-      - name: Deploy
+      - name: Require the Convex deploy key
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "::error::Set the CONVEX_DEPLOY_KEY secret in the production environment."
+            exit 1
+          fi
+
+      # One command builds the app and deploys Convex, in that order (ADR 0005, amended by
+      # ADR 0015). The deploy key picks the deployment. The CLI gives the build that deployment's
+      # canonical client URL as VITE_CONVEX_URL (--cmd-url-env-var-name) and its HTTP actions URL
+      # as CONVEX_SITE_URL, which the command passes on as VITE_CONVEX_SITE_URL. So the CSP always
+      # names the deployment being deployed, and the site URL is never guessed.
+      # If the build fails, nothing is pushed. Convex goes before the Worker, so new pages never
+      # call functions that do not exist yet.
+      - name: Build, then deploy Convex functions
+        working-directory: packages/backend
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: >-
+          pnpm exec convex deploy --typecheck enable
+          --cmd 'VITE_CONVEX_SITE_URL="$CONVEX_SITE_URL" pnpm -w run build'
+          --cmd-url-env-var-name VITE_CONVEX_URL
+
+      - name: Deploy Worker
         working-directory: apps/web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

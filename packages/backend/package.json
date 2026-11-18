@@ -1,0 +1,17 @@
+{
+  "name": "@unfold/backend",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/convex-dev.mjs",
+    "deploy:check": "node scripts/convex-dev.mjs --once --typecheck enable",
+    "typecheck": "tsc --noEmit -p convex"
+  },
+  "dependencies": {
+    "convex": "^1.50.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

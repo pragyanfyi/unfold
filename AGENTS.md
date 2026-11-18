@@ -12,13 +12,15 @@ Unfold: a chat app where an AI interviews the user about an idea and a decision 
 - **Set up:** shadcn/ui, Tailwind v4 and the Sonner `<Toaster />` (ADR 0004); production deploy to Cloudflare Workers on release (ADR 0005, `docs/operations/deployment.md`).
 - **Built:** BYOK key entry, the server chat route with the interview tools (#26, Anthropic only), the interview chat UI (#27), the decision-tree canvas beside it (#30, React Flow, read-only, animated growth, ADR 0014) linked to the chat by node (#31), and saved conversations in the browser (#28, IndexedDB, ADR 0013): a sidebar to list, open, rename and delete ideas, at `/c/$id`. Keyboard shortcuts from one registry, with a `Mod+/` list, and an accessibility pass: canvas arrow keys, focus handling, axe in E2E (#32, `docs/internals/hotkeys.md`).
 - **Tested:** Playwright + aimock E2E on the production build (`pnpm test:e2e`, ADR 0011, `docs/internals/testing.md`); post-deploy smoke in `deploy-production.yml`.
-- **Not built yet:** the move to Convex. Until it lands, conversations still live in IndexedDB (ADR 0013, superseded) and the chat route still runs on the Worker.
+- **Set up:** the Convex project in `packages/backend` (schema, local backend in `pnpm dev`, CI deploy check, deploy on release before the Worker, CSP) (#35).
+- **Not built yet:** the rest of the move to Convex. Until it lands, conversations still live in IndexedDB (ADR 0013, superseded) and the chat route still runs on the Worker.
 - **Roadmap:** GitHub milestones `Interview`, `Canvas`, `Convex and accounts` (`gh issue list`); `Foundation` is done. Releases: release-please, see `docs/operations/releasing.md`.
 
 ## Layout
 
 - `apps/web`: TanStack Start app deployed to Cloudflare Workers
-- `packages/*`: shared code, created only when a second consumer exists
+- `packages/backend`: Convex schema and functions, shared by every app (ADR 0015)
+- `packages/*`: other shared code, created only when a second consumer exists
 - `docs/adr`: decisions. `docs/internals`: coding rules by area. `docs/operations`: runbooks.
 
 ## Commands (from repo root)
