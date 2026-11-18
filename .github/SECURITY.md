@@ -31,12 +31,16 @@ In scope: the Unfold web application and code in this repository. Out of scope: 
 Unfold has no AI gateway. You supply your own provider API key. Unfold uses the [TanStack AI BYOK](https://tanstack.com/ai/latest/docs/advanced/byok) mechanism. Currently only Anthropic keys are supported. How it works:
 
 - **Storage:** the key is kept in your browser only. When your browser supports passkeys, it is stored encrypted with a passkey. When passkeys are unavailable, it is held in memory for the current tab and is gone when you close it. If passkeys are available but your authenticator does not support the required PRF extension, saving the key fails; Unfold tells you so and does not keep the key any other way.
-- **Never persisted by us:** Unfold's database (Cloudflare D1), cache (KV) and logs do not store provider keys.
+- **Never persisted by us:** Unfold's database (Convex) and logs do not store provider keys.
 - **Request path:** the key is **not** sent only to the AI provider. For each AI request your browser sends the key in a request header to Unfold's own server route, which makes the call to the provider and then discards the key. **The key therefore passes through Unfold's server in transit on every request**, even though it is never stored.
 - **Logging:** raw keys must never be logged. The chat route does not log request headers, masks key-shaped text in every log line and error it returns, and replaces the AI library's own error logging with a version that drops the error object. Automated tests and lint rules check this; they cannot prove no path exists.
 - **No server-side key:** the hosted deployment has no fallback key. A request without your key is rejected.
 
 Because keys live in the browser, any cross-site scripting (XSS) flaw could expose them. We therefore send a strict Content-Security-Policy (scripts only from our origin or with a per-response nonce, connections only to our own origin and our own Convex deployment, never a wildcard) and treat XSS and CSP gaps as high severity.
+
+## Your conversations
+
+You must sign in with Google to use Unfold. Your ideas and their interviews are stored in Unfold's Convex database, tied to your account, so they are there on any device you sign in on. Only you can read, rename or delete them: every database function checks that you own the idea. Deleting an idea removes it and all its messages. Unfold operates the database, so the people running the hosted deployment can technically access what is stored there. Account deletion and data export are planned (#37).
 
 If you self-host Unfold, do not enable any server-side fallback key unless you understand that it changes this model.
 

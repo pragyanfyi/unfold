@@ -38,7 +38,7 @@ pbpaste | gh secret set CONVEX_DEPLOY_KEY --env production --repo pragyanfyi/unf
 
 After the release-tag guard, the workflow checks that `CONVEX_DEPLOY_KEY` is set and stops before building if it is not. No deployment URL is configured anywhere: the CLI takes it from the key.
 
-The Cloudflare token needs no other permissions. The Worker deploy runs no D1 migrations, and conversations are planned to move to Convex, not D1 (ADR 0015); until then they stay in the browser.
+The Cloudflare token needs no other permissions. The Worker deploy runs no migrations: conversations are stored in Convex (ADR 0015), whose schema the Convex deploy pushes.
 
 ## First deploy (one-time, manual) — done 2026-11-08
 
@@ -60,6 +60,7 @@ Project `unfold` in team `pragyan-pandey`, created with the Convex CLI. Its prod
 
 1. **Check which Worker version is live** (`pnpm exec wrangler deployments list` from `apps/web`). Do not assume: `wrangler deploy` makes an upload live as soon as it succeeds, so a later failure, or a failed smoke test (nothing rolls back), can leave the new Worker live.
 2. **To revert the pages only, roll back the Worker to a named version:** find the last release known to work in `pnpm exec wrangler deployments list` (each release deploys with `--tag <release tag>`), then run `pnpm exec wrangler rollback <version-id>` from `apps/web`, logged in with `wrangler login`. Always pass the ID: without one, Wrangler picks the version uploaded before the current one, which can be another broken release. Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions. This is the usual recovery when Convex has already deployed.
+   - **Not to a release without #74.** Releases before #74 (the first release whose changelog lists "store ideas in Convex") keep conversations in the browser's IndexedDB, not in Convex. Rolled back that far, the app shows no ideas saved in Convex, and ideas started meanwhile stay in that browser and do not come back after rolling forward. Convex data is not touched. Fix forward instead.
 3. **Otherwise, fix forward** with a new release.
 
 **Re-running an older release tag is a redeployment of both systems**, not a Worker-only rollback (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag; the first step rejects branches and unpublished tags). A tag whose workflow has the Convex step pushes that tag's older functions and schema before its Worker; tags from before Convex deploy only the Worker. Do not use it to push older Convex code over newer data. Convex refuses a push whose schema does not match the stored data, for example a field the older schema does not know.

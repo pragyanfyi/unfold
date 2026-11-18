@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type PaneTab, TwoPane } from "#/components/two-pane";
@@ -10,8 +10,7 @@ import { clearPendingIdea } from "#/features/auth/pending-idea";
 import { useSession } from "#/features/auth/session";
 import { CanvasPane } from "#/features/canvas/canvas-pane";
 import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
-import { onChangeElsewhere } from "#/features/storage/channel";
-import { conversationKeys, conversationQuery } from "#/features/storage/queries";
+import { conversationQuery } from "#/features/storage/queries";
 import type { LoadedConversation } from "#/features/storage/types";
 import { isUuid, uuidv7 } from "#/features/storage/uuid";
 import type { Tree } from "#/features/tree/derive-tree";
@@ -26,7 +25,6 @@ import { useConversationSaver } from "./use-conversation-saver";
 export function ConversationScreen() {
   const { id: pathId } = useParams({ strict: false }) as { id?: string };
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [draftId, setDraftId] = useState(uuidv7);
   // The idea this tab created and still shows. Its messages are already on screen, so it is
   // not read back from storage.
@@ -36,14 +34,6 @@ export function ConversationScreen() {
   // What the user is looking at now. A first save can finish after they have moved on.
   const current = useRef(threadId);
   current.current = threadId;
-
-  useEffect(
-    () =>
-      onChangeElsewhere(() => {
-        void queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
-      }),
-    [queryClient],
-  );
 
   // Sign-in is required (ADR 0016). Signed out on a saved idea's address, the user goes to `/`
   // with the onboarding dialog at sign-in, and Google brings them back to that address. Signing
@@ -123,7 +113,7 @@ function SavedConversation({ id, onNew }: { id: string; onNew: () => void }) {
   if (loaded) return <Conversation id={id} loaded={loaded} onNew={onNew} />;
   if (query.isPending && isUuid(id)) return <LoadingIdea />;
   const message = query.isError
-    ? "This idea could not be read from this browser."
+    ? "This idea could not be loaded."
     : "There is no saved idea at this address. It may have been deleted.";
   return (
     <div className="p-6">

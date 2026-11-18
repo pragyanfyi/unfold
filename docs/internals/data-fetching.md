@@ -20,7 +20,10 @@ Applies to `apps/web/src/**/*.{ts,tsx}`.
 - Validate all input at the boundary (server function or route handler). Do not trust client data.
 - Return only the fields the client needs. Do not return database rows wholesale.
 - Route loaders may prefetch into the query client; the component then reads the same query. Do not fetch the same data twice by two different paths.
-- Reach D1 through the `cloudflare:workers` env import inside a helper function (ADR 0009); do not keep request-derived state, such as a user, session or request, at module scope. KV is not used (ADR 0010).
+- Data lives in Convex (ADR 0015), in `packages/backend/convex`. Every function checks the signed-in user with `getAuthUserId` and acts only on what that user owns; someone else's document looks like a missing one. Validate every argument, and return only the fields the client needs, never owner or Convex ids.
+- Read data that should stay current with `convexQuery(...)` from `@convex-dev/react-query`: it is a TanStack query that stays subscribed, so it needs no invalidation. One-off reads and writes go through the feature's own seam (for ideas, `ConversationStore` in `features/storage`), so components and tests do not depend on Convex.
+- Convex errors cross to the browser as `ConvexError({ code })` only, never with user content. The client turns codes into its own typed errors.
+- Do not keep request-derived state, such as a user, session or request, at module scope.
 
 ## Errors
 

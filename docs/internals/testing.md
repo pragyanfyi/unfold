@@ -24,7 +24,7 @@ Applies to `**/*.test.{ts,tsx}` and E2E tests.
 | Component | Vitest + jsdom + Testing Library | UI behaviour                                     |
 | E2E       | Playwright, Chromium only        | A few critical journeys                          |
 
-Storage (`features/storage`) is tested in node against `fake-indexeddb`, behind the `ConversationStore` interface, so chat and UI tests do not need IndexedDB. Quota, eviction, private browsing and cross-tab races cannot be reproduced there.
+Convex functions are tested in `packages/backend/tests` with `convex-test`, which runs them in memory: ownership, the `nextSeq` and `titleRev` checks and input validation are tested there, signed in with the test-only password method. In the web app, storage sits behind the `ConversationStore` interface, so chat and UI tests use a fake and need no backend.
 
 Most tests belong at the bottom. Add an E2E test only for a journey a lower layer cannot cover.
 
@@ -37,7 +37,7 @@ Most tests belong at the bottom. Add an E2E test only for a journey a lower laye
 
 ## E2E
 
-- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider and a local Convex backend of its own (ports 3230 and 3231, a fresh database each run, `packages/backend/scripts/e2e-backend.mjs`). No Cloudflare or Convex account, no secrets. The app is built with `build:e2e` (`vite build --mode e2e`), which points it at that backend through `apps/web/.env.e2e`. Saved conversations live in the browser's IndexedDB (ADR 0013); each test has its own browser context, so each starts empty.
+- Playwright, Chromium only, against the production build served by `wrangler dev` on `dist/server/wrangler.json` (the local Workers runtime), with aimock as the provider and a local Convex backend of its own (ports 3230 and 3231, a fresh database each run, `packages/backend/scripts/e2e-backend.mjs`). No Cloudflare or Convex account, no secrets. The app is built with `build:e2e` (`vite build --mode e2e`), which points it at that backend through `apps/web/.env.e2e`. Saved conversations live in that backend; each test signs in as a new user, so each starts with no ideas.
 - Run `pnpm test:e2e` from the repo root (it builds first). Specs are in `apps/web/e2e`. Vitest does not run them, and Playwright does not run `src`.
 - The app is served at `http://localhost:4173`, not `127.0.0.1`: WebAuthn rejects an IP address as the origin.
 - **Passkeys:** saving a key uses a passkey whose PRF output encrypts it (ADR 0003). Chromium's virtual authenticator supports PRF (`hasPrf: true`, see `e2e/support.ts`), so tests can save a key through the real dialog. Add it before the first navigation.

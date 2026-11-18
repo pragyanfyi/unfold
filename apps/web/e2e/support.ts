@@ -35,8 +35,10 @@ export const E2E_CONVEX_SITE_URL = "http://127.0.0.1:3231";
  * keyed by the deployment URL. Call it before the first navigation.
  *
  * A user per test keeps parallel tests apart: they never share a session or refresh token.
+ *
+ * Returns the user's access token, for tests that read the backend as that user.
  */
-export async function signIn(page: Page) {
+export async function signIn(page: Page): Promise<string> {
   const client = new ConvexHttpClient(E2E_CONVEX_URL);
   const result = await client.mutation(api.auth.signUpWithUsernamePassword, {
     username: `e2e-${crypto.randomUUID()}`,
@@ -55,4 +57,12 @@ export async function signIn(page: Page) {
     },
     { suffix, accessToken: result.tokens.accessToken, refreshToken: result.tokens.refreshToken },
   );
+  return result.tokens.accessToken;
+}
+
+/** A Convex client signed in as the user `signIn` created. */
+export function backendAs(accessToken: string): ConvexHttpClient {
+  const client = new ConvexHttpClient(E2E_CONVEX_URL);
+  client.setAuth(accessToken);
+  return client;
 }

@@ -2,7 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import type { SaveStatus } from "#/features/storage/saver";
 
-// Saving failed or lost a race (ADR 0013). Stays until the cause is gone. The conversation
+// Saving failed or lost a race (ADR 0013, 0015). Stays until the cause is gone. The conversation
 // keeps working in memory, and the text says what a reload would lose.
 export function SaveNotice({
   status,
@@ -15,11 +15,9 @@ export function SaveNotice({
 }) {
   if (status.kind === "unsaved") {
     const why =
-      status.reason === "quota"
-        ? "Your browser has no space left for it."
-        : status.reason === "too-new"
-          ? "It was saved by a newer version of Unfold, so this one will not change it."
-          : "Your browser would not let Unfold store it.";
+      status.reason === "too-new"
+        ? "It was saved by a newer version of Unfold, so this one will not change it."
+        : "Unfold could not save it to your account.";
     return (
       <Alert variant="destructive" className="mx-auto max-w-2xl">
         <AlertTitle>This conversation is not saved</AlertTitle>
@@ -41,12 +39,13 @@ export function SaveNotice({
       <Alert variant="destructive" className="mx-auto max-w-2xl">
         <AlertTitle>
           {status.reason === "deleted"
-            ? "This conversation was deleted in another tab"
-            : "This conversation changed in another tab"}
+            ? "This conversation was deleted elsewhere"
+            : "This conversation changed elsewhere"}
         </AlertTitle>
         <AlertDescription className="flex flex-col items-start gap-2">
           <span>
-            Nothing more is saved from this tab, so nothing is overwritten.
+            It was changed in another tab or on another device. Nothing more is saved from this tab,
+            so nothing is overwritten.
             {status.reason === "deleted"
               ? " Starting a new idea leaves this conversation, and anything not saved from this tab is lost."
               : " Reloading shows the saved version, and anything not saved from this tab is lost."}

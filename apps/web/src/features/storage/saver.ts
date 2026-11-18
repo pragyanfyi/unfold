@@ -2,12 +2,16 @@ import type { UIMessage } from "@tanstack/ai-react";
 import { type ConversationStore, StorageError } from "./store";
 import { MAX_TITLE_LENGTH } from "./types";
 
+// The most messages one write may carry. Kept in step with `MAX_MESSAGES_PER_CALL` in
+// packages/backend/convex/ideas.ts; a longer queue goes out in several writes.
+export const MAX_MESSAGES_PER_SAVE = 100;
+
 // What the UI shows about saving (ADR 0013). `unsaved` and `conflict` are warnings that stay
 // until fixed. The conversation keeps working in memory either way.
 export type SaveStatus =
   | { kind: "idle" }
   | { kind: "saving" }
-  | { kind: "unsaved"; reason: "quota" | "unavailable" | "too-new" }
+  | { kind: "unsaved"; reason: "unavailable" | "too-new" }
   | { kind: "conflict"; reason: "changed" | "deleted" };
 
 export function titleFromIdea(messages: ReadonlyArray<UIMessage>): string {
@@ -33,9 +37,9 @@ type Options = {
   onSaved: () => void;
 };
 
-// Writes the savable prefix of one conversation, in order, one transaction at a time. It
+// Writes the savable prefix of one conversation, in order, one mutation at a time. It
 // never rewrites or deletes: the prefix only grows. After a storage failure the unsaved
-// messages stay queued and go out as one batch on the next `sync` or `retry` (a transaction
+// messages stay queued and go out as one batch on the next `sync` or `retry` (a mutation
 // is all or nothing, so a retry cannot duplicate or skip messages). After a conflict it stops
 // for good: this tab does not merge, and never recreates a conversation deleted elsewhere.
 export class ConversationSaver {
@@ -72,7 +76,7 @@ export class ConversationSaver {
   private async drain() {
     // `latest` can grow while a write is in flight, so loop until nothing is left.
     while (!this.stopped && this.latest.length > this.stored) {
-      const batch = this.latest.slice(this.stored);
+      const batch = this.latest.slice(this.stored, this.stored + MAX_MESSAGES_PER_SAVE);
       this.options.onStatus({ kind: "saving" });
       try {
         if (this.stored === 0) {
@@ -102,7 +106,7 @@ export class ConversationSaver {
     } else if (code === "missing") {
       this.stopped = true;
       this.options.onStatus({ kind: "conflict", reason: "deleted" });
-    } else if (code === "quota" || code === "too-new") {
+    } else if (code === "too-new") {
       this.options.onStatus({ kind: "unsaved", reason: code });
     } else {
       this.options.onStatus({ kind: "unsaved", reason: "unavailable" });
