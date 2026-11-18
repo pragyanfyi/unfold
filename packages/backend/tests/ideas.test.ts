@@ -5,7 +5,12 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
-import { MAX_MESSAGE_BYTES, MAX_TITLE_LENGTH } from "../convex/ideas";
+import {
+  MAX_IDEA_BYTES,
+  MAX_MESSAGE_BYTES,
+  MAX_MESSAGES_PER_CALL,
+  MAX_TITLE_LENGTH,
+} from "../convex/ideas";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
@@ -294,6 +299,44 @@ describe("ideas", () => {
     }
     const ideas = await t.run((ctx) => ctx.db.query("ideas").collect());
     expect(ideas).toHaveLength(0);
+  });
+
+  it("refuses more messages per call than one save may send", async () => {
+    const t = backend();
+    const alice = await user(t);
+    const many = Array.from({ length: MAX_MESSAGES_PER_CALL + 1 }, (_, i) => message(`m${i}`));
+    expect(await code(alice.mutation(api.ideas.create, idea(many)))).toBe("invalid");
+  });
+
+  it("keeps an idea small enough to load and delete in one call", async () => {
+    const t = backend();
+    const alice = await user(t);
+    // Messages just under the per-message limit, until the next one would pass the idea's limit.
+    const big = (id: string) => message(id, "user", "x".repeat(MAX_MESSAGE_BYTES - 200));
+    const fits = Math.floor(MAX_IDEA_BYTES / MAX_MESSAGE_BYTES);
+    await alice.mutation(api.ideas.create, idea([big("m0")]));
+    for (let seq = 1; seq < fits; seq++) {
+      await alice.mutation(api.ideas.append, {
+        id: ID,
+        expectedNextSeq: seq,
+        schemaVersion: 1,
+        messages: [big(`m${seq}`)],
+      });
+    }
+    expect(
+      await code(
+        alice.mutation(api.ideas.append, {
+          id: ID,
+          expectedNextSeq: fits,
+          schemaVersion: 1,
+          messages: [big("one-too-many")],
+        }),
+      ),
+    ).toBe("too-large");
+    const loaded = await alice.query(api.ideas.load, { id: ID });
+    expect(loaded?.messages).toHaveLength(fits);
+    await alice.mutation(api.ideas.remove, { id: ID });
+    expect(await alice.query(api.ideas.load, { id: ID })).toBeNull();
   });
 
   it("reports damage instead of returning a gap in the messages", async () => {

@@ -22,7 +22,7 @@ What we checked (all read 2026-11-17):
 
 ## Decision
 
-None of this is built yet. This section describes the design the Convex migration will build; until it ships, the app works as ADRs 0003 and 0013 describe.
+Built so far: the Convex project and deploy (#35), accounts (#34, ADR 0016) and storage (#74, see "Built in #74" below). Not built yet: the chat move (#75), with the turn document and run ownership. Until it ships, the model call runs on the Worker as ADR 0003 describes, and the parts below marked "planned" describe the design it will build.
 
 ### What runs where
 
@@ -109,6 +109,7 @@ Recorded on 2026-11-19, while building the storage move.
 - **A message is stored as JSON text** (`message: v.string()`), not as a Convex object. A `UIMessage` can hold a `Date` and keys that Convex does not allow as field names. The append mutation checks that each one parses, has an `id`, a known `role` and `parts`, and is at most 512 KiB.
 - **The turn document waits for #75.** While the chat runs on the Worker, the server never holds a message that is not final: the browser keeps it, as before. The turn document, run ids and statuses are built with the HTTP action that writes them.
 - **The list of ideas is a live query** through `@convex-dev/react-query`, so a change in another tab or on another device shows up without the BroadcastChannel hint. One-off reads and writes go through the existing `ConversationStore` seam.
+- **An idea holds at most 8 MiB of messages** (`MAX_IDEA_BYTES`, tracked in `ideas.bytes`). `load` returns every message and `remove` reads every message, each in one call, and Convex caps a call at 16 MiB read and returned; the cap keeps both possible for any idea. An interview is a few hundred KiB, so the cap is thousands of turns. A save past it is refused, and the app says the conversation is not saved. Paging both reads would remove the cap, if ideas ever need to be larger. One write carries at most 100 messages; the browser splits a longer queue.
 - `ownerId` became `v.id("users")` and `message` became a string. Neither is backward compatible in general, but no function had written either table, so no document existed to break.
 
 ## Changes to earlier ADRs

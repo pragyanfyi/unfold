@@ -2,6 +2,10 @@ import type { UIMessage } from "@tanstack/ai-react";
 import { type ConversationStore, StorageError } from "./store";
 import { MAX_TITLE_LENGTH } from "./types";
 
+// The most messages one write may carry. Kept in step with `MAX_MESSAGES_PER_CALL` in
+// packages/backend/convex/ideas.ts; a longer queue goes out in several writes.
+export const MAX_MESSAGES_PER_SAVE = 100;
+
 // What the UI shows about saving (ADR 0013). `unsaved` and `conflict` are warnings that stay
 // until fixed. The conversation keeps working in memory either way.
 export type SaveStatus =
@@ -72,7 +76,7 @@ export class ConversationSaver {
   private async drain() {
     // `latest` can grow while a write is in flight, so loop until nothing is left.
     while (!this.stopped && this.latest.length > this.stored) {
-      const batch = this.latest.slice(this.stored);
+      const batch = this.latest.slice(this.stored, this.stored + MAX_MESSAGES_PER_SAVE);
       this.options.onStatus({ kind: "saving" });
       try {
         if (this.stored === 0) {

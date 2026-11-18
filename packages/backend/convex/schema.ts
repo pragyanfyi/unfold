@@ -25,6 +25,8 @@ export default defineSchema({
     schemaVersion: v.number(),
     // The count of message documents; the next append goes at this `seq`.
     nextSeq: v.number(),
+    // The total size of the idea's messages in bytes, kept under `MAX_IDEA_BYTES` (ideas.ts).
+    bytes: v.number(),
     // Incremented on every title change, so a rename can detect a concurrent one.
     titleRev: v.number(),
     // Last append or title change, in ms since the epoch. Creation time is `_creationTime`.

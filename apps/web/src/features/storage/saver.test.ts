@@ -1,6 +1,6 @@
 import type { UIMessage } from "@tanstack/ai-react";
 import { describe, expect, it, vi } from "vitest";
-import { ConversationSaver, type SaveStatus, titleFromIdea } from "./saver";
+import { ConversationSaver, MAX_MESSAGES_PER_SAVE, type SaveStatus, titleFromIdea } from "./saver";
 import { type ConversationStore, StorageError, type StorageErrorCode } from "./store";
 
 const msg = (id: string, text = id, role: "user" | "assistant" = "user"): UIMessage => ({
@@ -16,7 +16,7 @@ function fakeStore() {
       if (fail.next) throw new StorageError(fail.next);
       return input;
     }),
-    append: vi.fn(async () => {
+    append: vi.fn(async (_id: string, _from: number, _messages: ReadonlyArray<UIMessage>) => {
       if (fail.next) throw new StorageError(fail.next);
       return {};
     }),
@@ -61,6 +61,28 @@ describe("ConversationSaver", () => {
     expect(append).not.toHaveBeenCalled();
     await saver.sync([msg("a"), msg("b"), msg("c")]);
     expect(append).toHaveBeenCalledWith("c1", 2, [msg("c")]);
+  });
+
+  it("splits a long queue into writes the backend accepts, and keeps going", async () => {
+    const { saver, create, append, statuses } = setup();
+    // The first save is still in flight while the conversation grows past one write's limit.
+    let finishCreate!: () => void;
+    create.mockImplementationOnce(
+      (input) =>
+        new Promise((resolve) => {
+          finishCreate = () => resolve(input);
+        }),
+    );
+    const first = saver.sync([msg("m0")]);
+    const all = Array.from({ length: MAX_MESSAGES_PER_SAVE + 2 }, (_, i) => msg(`m${i}`));
+    const grown = saver.sync(all);
+    finishCreate();
+    await Promise.all([first, grown]);
+    expect(append.mock.calls.map(([, from, batch]) => [from, batch.length])).toEqual([
+      [1, MAX_MESSAGES_PER_SAVE],
+      [MAX_MESSAGES_PER_SAVE + 1, 1],
+    ]);
+    expect(statuses.at(-1)).toEqual({ kind: "idle" });
   });
 
   it("does not write twice for the same prefix", async () => {

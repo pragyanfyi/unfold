@@ -10,7 +10,9 @@ import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/s
 //   exactly like one that does not exist;
 // - messages are append-only and numbered by `seq`, and an append is refused unless the caller
 //   knows the current `nextSeq` (another tab may have written first);
-// - a rename is refused unless the caller knows the current `titleRev`.
+// - a rename is refused unless the caller knows the current `titleRev`;
+// - an idea's messages stay under `MAX_IDEA_BYTES` in total, so it can always be loaded and
+//   deleted in one call.
 //
 // Failures are `ConvexError`s whose data is only `{ code }`, never conversation text.
 
@@ -21,6 +23,7 @@ export type IdeaErrorCode =
   | "conflict"
   | "too-new"
   | "invalid"
+  | "too-large"
   | "damaged";
 
 function fail(code: IdeaErrorCode): never {
@@ -32,8 +35,13 @@ export const MAX_TITLE_LENGTH = 80;
 // A message is stored in one document, which Convex caps at 1 MiB. Interview messages are a few
 // KiB; this leaves room for the record around it.
 export const MAX_MESSAGE_BYTES = 512 * 1024;
-// More than any one save sends; a bound on what a single call may write.
+// A bound on what a single call may write. Kept in step with `MAX_MESSAGES_PER_SAVE` in
+// apps/web/src/features/storage/saver.ts, which splits larger saves.
 export const MAX_MESSAGES_PER_CALL = 100;
+// The most an idea's messages may hold in total. `load` returns them all and `remove` reads them
+// all, each in one call, and Convex caps a call at 16 MiB read and 16 MiB returned; half of that
+// leaves room for the rest. An interview is a few hundred KiB, so this is thousands of turns.
+export const MAX_IDEA_BYTES = 8 * 1024 * 1024;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ROLES = new Set(["system", "user", "assistant", "activity"]);
@@ -82,8 +90,12 @@ function checkTitle(title: string) {
 
 // The message's id, after checking it is a message we can store. Its full shape belongs to the
 // chat library, so this checks only what storage relies on.
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
 function checkMessage(json: string): string {
-  if (new TextEncoder().encode(json).length > MAX_MESSAGE_BYTES) fail("invalid");
+  if (byteLength(json) > MAX_MESSAGE_BYTES) fail("invalid");
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -98,13 +110,24 @@ function checkMessage(json: string): string {
   return id;
 }
 
+// Checks the messages and that the idea stays under its size limit; returns the idea's new size.
+function checkMessages(stored: number, messages: ReadonlyArray<string>): number {
+  if (messages.length > MAX_MESSAGES_PER_CALL) fail("invalid");
+  let bytes = stored;
+  for (const message of messages) {
+    checkMessage(message);
+    bytes += byteLength(message);
+  }
+  if (bytes > MAX_IDEA_BYTES) fail("too-large");
+  return bytes;
+}
+
 async function insertMessages(
   ctx: MutationCtx,
   ideaId: Id<"ideas">,
   from: number,
   messages: ReadonlyArray<string>,
 ) {
-  if (messages.length > MAX_MESSAGES_PER_CALL) fail("invalid");
   const ids = messages.map(checkMessage);
   for (const [index, message] of messages.entries()) {
     await ctx.db.insert("messages", { ideaId, seq: from + index, messageId: ids[index], message });
@@ -166,12 +189,14 @@ export const create = mutation({
       .withIndex("by_client_id", (q) => q.eq("clientId", id))
       .first();
     if (taken) fail("exists");
+    const bytes = checkMessages(0, messages);
     const ideaId = await ctx.db.insert("ideas", {
       clientId: id,
       ownerId: userId,
       title,
       schemaVersion,
       nextSeq: messages.length,
+      bytes,
       titleRev: 0,
       updatedAt: Date.now(),
     });
@@ -197,9 +222,11 @@ export const append = mutation({
     if (!idea) fail("missing");
     if (idea.schemaVersion > schemaVersion) fail("too-new");
     if (idea.nextSeq !== expectedNextSeq) fail("conflict");
+    const bytes = checkMessages(idea.bytes, messages);
     await insertMessages(ctx, idea._id, idea.nextSeq, messages);
     await ctx.db.patch(idea._id, {
       nextSeq: idea.nextSeq + messages.length,
+      bytes,
       updatedAt: Date.now(),
     });
     const next = await ctx.db.get(idea._id);
