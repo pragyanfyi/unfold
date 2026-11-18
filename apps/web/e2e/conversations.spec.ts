@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY } from "./support";
+import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 
 // Saved conversations (#28, ADR 0013) in a real browser: the app stores them in IndexedDB,
 // lists them in the sidebar, and restores them after a reload. Each test has its own browser
@@ -49,6 +49,7 @@ const SAVED_URL = /\/c\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 
 test.beforeEach(async ({ page }) => {
   await addPasskeyAuthenticator(page);
+  await signIn(page);
   await page.goto("/");
   await saveKey(page);
 });

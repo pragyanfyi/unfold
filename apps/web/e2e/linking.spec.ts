@@ -1,11 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY } from "./support";
+import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 
 // The canvas and the chat linked by node (#31), in a real browser against aimock. It reuses
 // the E2E-IDEA-JOURNEY fixtures in e2e/fixtures/interview.json.
 
 async function startInterview(page: Page) {
   await addPasskeyAuthenticator(page);
+  await signIn(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Add Anthropic API key" }).click();
   await page.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);

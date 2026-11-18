@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY } from "./support";
+import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 
 // The accessibility pass (#32) in a real browser: axe on each screen of an interview, and the
 // keyboard paths jsdom cannot show (focus after a control goes away, the canvas arrow keys).
@@ -53,6 +53,7 @@ test.describe("desktop 1280x800", () => {
 
   test("an interview has no axe violations, and focus follows the questions", async ({ page }) => {
     await addPasskeyAuthenticator(page);
+    await signIn(page);
     await page.goto("/");
     await expectNoViolations(page);
     await saveKey(page);
@@ -79,6 +80,7 @@ test.describe("desktop 1280x800", () => {
 
   test("arrow keys move between nodes, and Escape keeps focus on the canvas", async ({ page }) => {
     await addPasskeyAuthenticator(page);
+    await signIn(page);
     await page.goto("/");
     await saveKey(page);
     await page.getByRole("textbox", { name: "Your idea" }).fill("E2E-IDEA-JOURNEY a11y keys");
@@ -126,6 +128,7 @@ test.describe("phone 390x800", () => {
     page,
   }) => {
     await addPasskeyAuthenticator(page);
+    await signIn(page);
     await page.goto("/");
     await saveKey(page);
     await page.getByRole("textbox", { name: "Your idea" }).fill("E2E-IDEA-JOURNEY a11y phone");

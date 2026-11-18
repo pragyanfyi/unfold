@@ -2,11 +2,30 @@
 import { fakeText } from "@tanstack/ai/testing";
 import type { UIMessage } from "@tanstack/ai-react";
 import { defineByok, memoryStorage } from "@tanstack/ai-react/byok";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
+import type { Session } from "#/features/auth/session";
 import type { Tree } from "#/features/tree/derive-tree";
 import { handleChatRequest } from "./chat-handler";
 import { ChatPane } from "./chat-pane";
+
+// Signed in, as the chat is used once onboarding is done (ADR 0016). The gate itself is tested
+// in onboarding.test.tsx.
+function SignedIn({ children }: { children: ReactNode }) {
+  return <FakeSessionProvider>{children}</FakeSessionProvider>;
+}
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: SignedIn });
+}
 
 // The real chat client against the real route, with a scripted fake model and a fake key.
 const FAKE_KEY = "sk-ant-FAKE-PANE-KEY-0123456789";
@@ -67,6 +86,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // A refused send keeps its idea for the Google redirect; no test may inherit it.
+  sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -80,11 +101,15 @@ describe("ChatPane: empty state and key", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("opens the key dialog when sending without a key, and keeps the idea", async () => {
+  it("opens onboarding at the key step when sending without a key, and keeps the idea", async () => {
     const { fetchMock } = stubNetwork([]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(false)} />);
     await sendIdea("My idea");
-    expect(await screen.findByLabelText("API key")).toBeTruthy();
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    expect(
+      within(dialog).getByText("Add your key").closest("li")?.getAttribute("aria-current"),
+    ).toBe("step");
+    expect(within(dialog).getByLabelText("API key")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
     expect((screen.getByLabelText("Your idea") as HTMLTextAreaElement).value).toBe("My idea");
     expect(screen.queryByText("My idea", { selector: "[data-slot=bubble-content]" })).toBeNull();
@@ -653,5 +678,112 @@ describe("ChatPane: linked to the canvas (#31)", () => {
     rerender(<ChatPane threadId="t1" byok={byok} selectedId="r1q2" />);
     expect(screen.getByText("Question 2 of 2")).toBeTruthy();
     expect(fake.pendingResponses()).toBe(0);
+  });
+});
+
+describe("ChatPane: onboarding (ADR 0016)", () => {
+  function renderAs(session: Session, ui: ReactElement) {
+    return rtlRender(<FakeSessionProvider session={session}>{ui}</FakeSessionProvider>);
+  }
+  const PENDING = "unfold.pendingIdea";
+
+  function currentStep(dialog: HTMLElement) {
+    return within(dialog).getByRole("list", { name: "Steps" }).querySelector("[aria-current=step]")
+      ?.textContent;
+  }
+
+  it("signed out, keeps the idea for the redirect and asks to sign in, sending nothing", async () => {
+    const { fetchMock } = stubNetwork([]);
+    const signInWithGoogle = vi.fn(async () => {});
+    renderAs(
+      fakeSession({ status: "signed-out", signInWithGoogle }),
+      <ChatPane threadId="t1" byok={await byokWithKey(true)} />,
+    );
+    expect(
+      screen.getByText(/sign in with Google, then add your own Anthropic API key/),
+    ).toBeTruthy();
+    // No key button before sign-in: the key comes second.
+    expect(screen.queryByRole("button", { name: /add anthropic api key/i })).toBeNull();
+
+    await sendIdea("My idea");
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    expect(currentStep(dialog)).toContain("Sign in");
+    expect(sessionStorage.getItem(PENDING)).toBe("My idea");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledWith(undefined));
+  });
+
+  it("closing the dialog keeps the idea in the composer", async () => {
+    stubNetwork([]);
+    renderAs(
+      fakeSession({ status: "signed-out" }),
+      <ChatPane threadId="t1" byok={await byokWithKey(false)} />,
+    );
+    await sendIdea("My idea");
+    fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect((screen.getByLabelText("Your idea") as HTMLTextAreaElement).value).toBe("My idea");
+  });
+
+  it("starts the interview on its own once the key is saved in the dialog", async () => {
+    const { fetchMock } = stubNetwork([
+      { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
+    ]);
+    render(<ChatPane threadId="t1" byok={await byokWithKey(false)} />);
+    await sendIdea("My idea");
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: FAKE_KEY } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save key" }));
+
+    expect(await screen.findByText("Let's start.")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("My idea", { selector: "[data-slot=bubble-content]" })).toBeTruthy();
+    expect(sessionStorage.getItem(PENDING)).toBeNull();
+  });
+
+  it("back from Google with a key ready, starts the idea typed before", async () => {
+    stubNetwork([{ text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] }]);
+    sessionStorage.setItem(PENDING, "My idea");
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} />);
+    expect(await screen.findByText("Let's start.")).toBeTruthy();
+    expect(sessionStorage.getItem(PENDING)).toBeNull();
+  });
+
+  it("back from Google without a key, restores the idea and asks for the key", async () => {
+    const { fetchMock } = stubNetwork([]);
+    sessionStorage.setItem(PENDING, "My idea");
+    render(<ChatPane threadId="t1" byok={await byokWithKey(false)} />);
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    expect(currentStep(dialog)).toContain("Add your key");
+    expect((screen.getByLabelText("Your idea") as HTMLTextAreaElement).value).toBe("My idea");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("back without signing in, restores the idea and opens nothing", async () => {
+    stubNetwork([]);
+    sessionStorage.setItem(PENDING, "My idea");
+    renderAs(
+      fakeSession({ status: "signed-out" }),
+      <ChatPane threadId="t1" byok={await byokWithKey(true)} />,
+    );
+    await waitFor(() =>
+      expect((screen.getByLabelText("Your idea") as HTMLTextAreaElement).value).toBe("My idea"),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("sent from a saved idea's address, asks to sign in and returns there", async () => {
+    stubNetwork([]);
+    const signInWithGoogle = vi.fn(async () => {});
+    renderAs(
+      fakeSession({ status: "signed-out", signInWithGoogle }),
+      <ChatPane threadId="t1" byok={await byokWithKey(true)} signInReturnTo="/c/abc" />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledWith("/c/abc"));
   });
 });

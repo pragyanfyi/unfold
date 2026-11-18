@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { SidebarInset, SidebarProvider } from "#/components/ui/sidebar";
 import { Skeleton } from "#/components/ui/skeleton";
+import { useSession } from "#/features/auth/session";
 import { CanvasPane } from "#/features/canvas/canvas-pane";
 import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
 import { onChangeElsewhere } from "#/features/storage/channel";
@@ -43,10 +44,33 @@ export function ConversationScreen() {
     [queryClient],
   );
 
+  // Sign-in is required (ADR 0016). Signed out on a saved idea's address, the user goes to `/`
+  // with the onboarding dialog at sign-in, and Google brings them back to that address. Signing
+  // out from inside the app starts a new, empty idea instead, with no dialog.
+  const session = useSession();
+  const [signInReturnTo, setSignInReturnTo] = useState<string | null>(null);
+
+  // A new idea never reopens the sign-in prompt of an address the user has left.
   const startNew = () => {
+    setSignInReturnTo(null);
     setDraftId(uuidv7());
     void navigate({ to: "/" });
   };
+  const lastStatus = useRef(session.status);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `startNew` is a fresh function each render; this reacts to the session and the address only.
+  useEffect(() => {
+    const was = lastStatus.current;
+    lastStatus.current = session.status;
+    if (session.status !== "signed-out") return;
+    if (was === "signed-in") {
+      startNew();
+    } else if (pathId !== undefined) {
+      setSignInReturnTo(`/c/${pathId}`);
+      setDraftId(uuidv7());
+      void navigate({ to: "/", replace: true });
+    }
+  }, [session.status, pathId, navigate]);
+  const showSaved = pathId !== undefined && pathId !== live;
 
   return (
     <SidebarProvider>
@@ -59,13 +83,16 @@ export function ConversationScreen() {
       <SidebarInset className="h-dvh min-h-0 overflow-hidden md:h-[calc(100dvh-1rem)]">
         <AppHeader />
         <div className="min-h-0 flex-1">
-          {pathId !== undefined && pathId !== live ? (
+          {showSaved && session.status !== "signed-in" ? (
+            <LoadingIdea />
+          ) : showSaved ? (
             <SavedConversation key={pathId} id={pathId} onNew={startNew} />
           ) : (
             <Conversation
               key={threadId}
               id={threadId}
               loaded={null}
+              signInReturnTo={signInReturnTo}
               onFirstSave={() => {
                 // Left this idea while it was being saved: it is in the list now, and the
                 // user's current choice must not be replaced by its address.
@@ -91,14 +118,7 @@ function SavedConversation({ id, onNew }: { id: string; onNew: () => void }) {
   if (query.data && !loaded) setLoaded(query.data);
 
   if (loaded) return <Conversation id={id} loaded={loaded} onNew={onNew} />;
-  if (query.isPending && isUuid(id)) {
-    return (
-      <div className="flex flex-col gap-3 p-6" role="status" aria-label="Loading idea">
-        <Skeleton className="h-6 w-1/2" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
+  if (query.isPending && isUuid(id)) return <LoadingIdea />;
   const message = query.isError
     ? "This idea could not be read from this browser."
     : "There is no saved idea at this address. It may have been deleted.";
@@ -124,14 +144,25 @@ function SavedConversation({ id, onNew }: { id: string; onNew: () => void }) {
   );
 }
 
+function LoadingIdea() {
+  return (
+    <div className="flex flex-col gap-3 p-6" role="status" aria-label="Loading idea">
+      <Skeleton className="h-6 w-1/2" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  );
+}
+
 function Conversation({
   id,
   loaded,
+  signInReturnTo = null,
   onFirstSave,
   onNew,
 }: {
   id: string;
   loaded: LoadedConversation | null;
+  signInReturnTo?: string | null;
   onFirstSave?: () => void;
   onNew: () => void;
 }) {
@@ -167,6 +198,7 @@ function Conversation({
               initialMessages={loaded?.messages}
               onSavable={saver.onSavable}
               onStartOver={onNew}
+              signInReturnTo={signInReturnTo}
               onTree={setTree}
               selectedId={selectedId}
               onSelect={setSelectedId}

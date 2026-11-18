@@ -1,11 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
-import { addPasskeyAuthenticator, FAKE_KEY } from "./support";
+import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 
 // The two-pane layout in a real browser (ADR 0012). jsdom has no layout engine, so a CSS
 // ordering bug (flex-col beating md:flex-row in the Tabs) passed every component test.
 
 async function startInterview(page: Page) {
   await addPasskeyAuthenticator(page);
+  await signIn(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Add Anthropic API key" }).click();
   await page.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);

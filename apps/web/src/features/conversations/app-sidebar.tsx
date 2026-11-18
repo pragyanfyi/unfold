@@ -23,6 +23,7 @@ import {
   SidebarMenuSkeleton,
   useSidebar,
 } from "#/components/ui/sidebar";
+import { useSession } from "#/features/auth/session";
 import { conversationListQuery, storagePersistedQuery } from "#/features/storage/queries";
 import type { ConversationRecord } from "#/features/storage/types";
 import { DeleteDialog, RenameDialog } from "./conversation-dialogs";
@@ -36,7 +37,10 @@ export function AppSidebar({
   onNew: () => void;
   onDeleted: (id: string) => void;
 }) {
-  const list = useQuery(conversationListQuery());
+  // Ideas are shown only to a signed-in user (ADR 0016). They are still kept in this browser
+  // until they move to Convex (#74), so they are not yet tied to the account.
+  const { status } = useSession();
+  const list = useQuery({ ...conversationListQuery(), enabled: status === "signed-in" });
   const persisted = useQuery(storagePersistedQuery());
   const { id: activeId } = useParams({ strict: false }) as { id?: string };
   const { isMobile, setOpenMobile } = useSidebar();
@@ -68,7 +72,9 @@ export function AppSidebar({
           <SidebarGroup>
             <SidebarGroupLabel>Your ideas</SidebarGroupLabel>
             <SidebarGroupContent>
-              {list.isPending ? (
+              {status === "signed-out" ? (
+                <p className="px-2 text-sm text-muted-foreground">Sign in to see your ideas.</p>
+              ) : status === "loading" || list.isPending ? (
                 <SidebarMenu>
                   {[0, 1, 2].map((n) => (
                     <SidebarMenuItem key={n}>
