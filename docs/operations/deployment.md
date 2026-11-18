@@ -58,14 +58,11 @@ Project `unfold` in team `pragyan-pandey`, created with the Convex CLI. Its prod
 
 ## Rolling back
 
-Re-run **Deploy production** from an older release tag (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag, not a branch). The first step rejects branches and unpublished tags, or use `pnpm exec wrangler rollback` from `apps/web` while logged in with `wrangler login`.
+1. **Check which Worker version is live** (`pnpm exec wrangler deployments list` from `apps/web`). Do not assume: `wrangler deploy` makes an upload live as soon as it succeeds, so a later failure, or a failed smoke test (nothing rolls back), can leave the new Worker live.
+2. **To revert the pages only, roll back the Worker:** `pnpm exec wrangler rollback` from `apps/web`, logged in with `wrangler login`. Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions. This is the usual recovery when Convex has already deployed.
+3. **Otherwise, fix forward** with a new release.
 
-What each path leaves in Convex:
-
-- **`wrangler rollback` only rolls back the Worker.** Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions.
-- **Re-running an older tag** redeploys that tag's Convex functions too, if its workflow has the Convex step; tags from before Convex deploy only the Worker. A push is refused if the older schema does not match the data already stored, for example a field the older schema does not know.
-- **If the Worker deploy or the smoke test fails after Convex deployed**, do not assume which Worker is serving: `wrangler deploy` makes the upload live as soon as it succeeds, so a later failure, or a failed smoke test (nothing rolls back), can leave the new Worker live next to the new functions. First check which Worker version is active (`pnpm exec wrangler deployments list` from `apps/web`), then decide: roll the Worker back with `wrangler rollback`, or fix forward. Old pages with new functions are allowed by backward compatibility.
-- In either case, fix forward with a new release rather than pushing older Convex code over newer data.
+**Re-running an older release tag is a redeployment of both systems**, not a Worker-only rollback (Actions → Deploy production → Run workflow → under "Use workflow from" choose the tag; the first step rejects branches and unpublished tags). A tag whose workflow has the Convex step pushes that tag's older functions and schema before its Worker; tags from before Convex deploy only the Worker. Do not use it to push older Convex code over newer data. Convex refuses a push whose schema does not match the stored data, for example a field the older schema does not know.
 
 ## Verified
 
