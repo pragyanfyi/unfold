@@ -86,6 +86,36 @@ describe("convexOrigins", () => {
     ).toHaveLength(3);
   });
 
+  it("rejects a client URL in the site field and the reverse", () => {
+    expect(() =>
+      convexOrigins({
+        url: "https://happy-otter-123.convex.cloud",
+        siteUrl: "https://happy-otter-123.convex.cloud",
+      }),
+    ).toThrow(/VITE_CONVEX_SITE_URL/);
+    expect(() => convexOrigins({ url: "https://happy-otter-123.convex.site" })).toThrow(
+      /VITE_CONVEX_URL/,
+    );
+  });
+
+  it("accepts a regional deployment with its site URL given, and never guesses that URL", () => {
+    expect(
+      convexOrigins({
+        url: "https://calm-cow-456.eu-west-1.convex.cloud",
+        siteUrl: "https://calm-cow-456.eu-west-1.convex.site",
+      }),
+    ).toHaveLength(3);
+    expect(() => convexOrigins({ url: "https://calm-cow-456.eu-west-1.convex.cloud" })).toThrow(
+      /VITE_CONVEX_SITE_URL is required/,
+    );
+    expect(() =>
+      convexOrigins({
+        url: "https://calm-cow-456.eu-west-1.convex.cloud",
+        siteUrl: "https://calm-cow-456.convex.site",
+      }),
+    ).toThrow(/different deployments/);
+  });
+
   it("does not infer the site of a convex.cloud URL on another port", () => {
     expect(() => convexOrigins({ url: "https://happy-otter-123.convex.cloud:8443" })).toThrow(
       /default port/,
@@ -97,8 +127,8 @@ describe("convexOrigins", () => {
       convexOrigins({ url: "https://my_host.example.com", siteUrl: "https://a.example.com" }),
     ).toThrow(/host/);
     expect(() =>
-      convexOrigins({ url: "http://[::1]:3210", siteUrl: "http://[::1]:3211" }),
-    ).toThrow();
+      convexOrigins({ url: "https://[::1]:3210", siteUrl: "https://a.example.com" }),
+    ).toThrow(/host the CSP cannot name/);
   });
 });
 

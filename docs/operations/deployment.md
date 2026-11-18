@@ -64,7 +64,9 @@ What each path leaves in Convex:
 
 - **`wrangler rollback` only rolls back the Worker.** Convex keeps the newer functions and schema. That is safe because Convex changes must stay backward compatible (ADR 0015, Data model): older pages keep working against newer functions.
 - **Re-running an older tag** redeploys that tag's Convex functions too, if its workflow has the Convex step; tags from before Convex deploy only the Worker. A push is refused if the older schema does not match the data already stored, for example a field the older schema does not know.
-- **If the Worker step or the smoke test fails after Convex deployed**, the new functions are live with the old pages, which backward compatibility allows. Fix forward with a new release rather than pushing older Convex code over newer data.
+- **If the Worker deploy fails after Convex deployed**, the old Worker keeps serving, with the new functions, which backward compatibility allows.
+- **If the smoke test fails**, the new Worker is already live (the test runs after `wrangler deploy`, and nothing rolls it back), next to the new functions. First check which Worker version is active (`pnpm exec wrangler deployments list` from `apps/web`), then decide: roll the Worker back with `wrangler rollback`, or fix forward.
+- In either case, fix forward with a new release rather than pushing older Convex code over newer data.
 
 ## Verified
 

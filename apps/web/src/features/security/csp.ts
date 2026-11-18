@@ -27,20 +27,29 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
     return [];
   }
   const client = parseOrigin(env.url, "VITE_CONVEX_URL");
+  // Each URL has its own role: the client URL is never a .convex.site host and the reverse.
+  if (deploymentName(client, SITE) !== undefined) {
+    throw new Error("VITE_CONVEX_URL is the HTTP actions URL; use the .convex.cloud one");
+  }
   const name = deploymentName(client, CLOUD);
   let site: URL;
   if (env.siteUrl) {
     site = parseOrigin(env.siteUrl, "VITE_CONVEX_SITE_URL");
+    if (deploymentName(site, CLOUD) !== undefined) {
+      throw new Error("VITE_CONVEX_SITE_URL is the client URL; use the .convex.site one");
+    }
     // Both on Convex's own domains: they must name the same deployment.
     const siteName = deploymentName(site, SITE);
     if (name !== undefined && siteName !== undefined && name !== siteName) {
       throw new Error("VITE_CONVEX_URL and VITE_CONVEX_SITE_URL name different deployments");
     }
-  } else if (name !== undefined) {
+  } else if (name !== undefined && !name.includes(".")) {
     if (client.port) throw new Error("VITE_CONVEX_URL on convex.cloud must use the default port");
     site = new URL(`https://${name}${SITE}`);
   } else {
-    throw new Error("VITE_CONVEX_SITE_URL is required when VITE_CONVEX_URL is not *.convex.cloud");
+    throw new Error(
+      "VITE_CONVEX_SITE_URL is required unless VITE_CONVEX_URL is <name>.convex.cloud",
+    );
   }
   const socket = `${client.protocol === "https:" ? "wss:" : "ws:"}//${client.host}`;
   return [...new Set([client.origin, socket, site.origin])];
@@ -49,11 +58,15 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
 const CLOUD = ".convex.cloud";
 const SITE = ".convex.site";
 
-// The deployment name of a URL on one of Convex's own domains, or undefined for any other host.
+// The deployment part of a URL on one of Convex's own domains (everything before the domain), or
+// undefined for any other host. It may hold a region label (`name.region`); the site URL is
+// only inferred for the documented `name.convex.cloud` form, so a regional one must be explicit.
 function deploymentName(url: URL, domain: string): string | undefined {
   if (!url.hostname.endsWith(domain)) return undefined;
   const name = url.hostname.slice(0, -domain.length);
-  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`${url.hostname} is not a Convex deployment`);
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)?$/.test(name)) {
+    throw new Error(`${url.hostname} is not a Convex deployment`);
+  }
   return name;
 }
 

@@ -28,7 +28,7 @@ The backend lives in `packages/backend` (`@unfold/backend`), shared by every app
 - To use a cloud development deployment instead, run `pnpm --filter @unfold/backend exec convex dev --configure` once and log in. A configured deployment is kept; the local default applies only before one is chosen.
 - `pnpm --filter @unfold/backend run deploy:check` does what the CI job **Convex deploy check** does: typecheck and push once, then exit. It pushes to whichever deployment `.env.local` names.
 
-The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. Development's CSP already allows any `http:` and `ws:` connection, so for the local backend you can leave them unset until the web app calls Convex.
+The web app reads its Convex deployment from `VITE_CONVEX_URL` and, when that is not a `*.convex.cloud` URL, `VITE_CONVEX_SITE_URL`, needed unless the client URL is `<name>.convex.cloud` (in `apps/web/.env.local` or the environment). The build puts exactly those origins in the CSP's `connect-src` and fails on a malformed value. Development's CSP already allows any `http:` and `ws:` connection, so for the local backend you can leave them unset until the web app calls Convex.
 
 Schema changes must stay backward compatible (ADR 0015, Data model): add a field before code uses it, migrate, and remove the old one only when nothing reads it.
 
