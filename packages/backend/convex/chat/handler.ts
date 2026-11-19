@@ -300,7 +300,9 @@ async function* recordRun(
     }
     if (Date.now() - lastWrite >= WRITE_INTERVAL_MS) {
       const current = finalMessage(processor);
-      if (current) queueWrite(current.json);
+      // Masked before it leaves the handler: the model could echo the key, and the turn and the
+      // stored message must never hold it (ADR 0003).
+      if (current) queueWrite(maskText(current.json, secrets));
     }
   };
 
@@ -342,7 +344,9 @@ async function* recordRun(
     const done = !failed && !lost && !abortController.signal.aborted;
     const final = done ? finalMessage(processor) : null;
     let ended = false;
-    if (final) ended = await run.end(final.json, final.needsAnswer).catch(() => false);
+    if (final) {
+      ended = await run.end(maskText(final.json, secrets), final.needsAnswer).catch(() => false);
+    }
     if (!ended) await run.interrupt().catch(() => {});
   }
 }

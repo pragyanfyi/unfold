@@ -187,4 +187,15 @@ describe("chat turns", () => {
     expect(startTurn.mock.calls.flat().join(" ")).not.toContain(SENTINEL_KEY);
     expect(JSON.stringify(calls)).not.toContain(SENTINEL_KEY);
   });
+
+  it("masks the key in the reply before it is written, even when the model echoes it", async () => {
+    const { calls, startTurn } = fakeTurn();
+    const adapter = fakeText();
+    adapter.setResponses([{ text: `Your key is ${SENTINEL_KEY}, keep it safe.` }]);
+    await drain(await handleChatRequest(post(), { createAdapter: () => adapter, startTurn }));
+    expect(adapter.pendingResponses()).toBe(0);
+    const end = calls.find((c) => c.method === "end");
+    expect(end?.args[0]).toContain("[redacted]");
+    expect(JSON.stringify(calls)).not.toContain(SENTINEL_KEY);
+  });
 });
