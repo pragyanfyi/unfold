@@ -155,4 +155,4 @@ ADRs are immutable (ADR 0001); these notes record what changes and where.
   - whether an HTTP action outlives the client's disconnect there too, and its time limit;
   - whether action compute is billed on wall-clock or CPU time;
   - the real function-call cost of one reply, including whether HTTP actions and CORS preflights count;
-  - whether an uncaught error in an HTTP action is redacted in the response, on **production**: a development deployment returns error details by design, so a result there does not answer this. Checked after the first production deploy with a request that makes the action fail, such as a malformed bearer token.
+  - whether an uncaught error in an HTTP action is redacted in the response, on **production**: a development deployment returns error details by design, so a result there does not answer this. The chat action will catch its own errors, so a request to it cannot answer this. It needs a temporary HTTP action that throws a harmless sentinel error, deployed to production only for the check and removed afterwards, with the maintainer's approval.
