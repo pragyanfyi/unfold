@@ -57,6 +57,13 @@ describe("convexSiteUrl", () => {
     );
   });
 
+  it("returns the HTTP origin when the site URL shares the client URL's origin", () => {
+    // The CSP lists the shared origin once; the site URL must still be the https one, never wss.
+    const env = { url: "https://convex.example.com", siteUrl: "https://convex.example.com" };
+    expect(convexSiteUrl(env)).toBe("https://convex.example.com");
+    expect(convexOrigins(env)).toContain(convexSiteUrl(env));
+  });
+
   it("is undefined without a deployment, and always one of the CSP's origins", () => {
     expect(convexSiteUrl({})).toBeUndefined();
     const env = { url: "https://happy-otter-123.convex.cloud" };

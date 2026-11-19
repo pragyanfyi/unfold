@@ -22,6 +22,7 @@ import { clearPendingIdea, readPendingIdea, savePendingIdea } from "#/features/a
 import { useSession } from "#/features/auth/session";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
+import type { StoredHistory } from "#/features/storage/types";
 import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
 import { parkFocus, rescueFocus } from "#/lib/focus";
 import { ChatMessage } from "./chat-message";
@@ -58,7 +59,7 @@ export function ChatPane({
   initialMessages?: Array<UIMessage>;
   onFinish?: (message: UIMessage) => void;
   /** Runs before every request; storage must hold the messages first (ADR 0015). */
-  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<StoredHistory>;
   /** Called when the user stops a run. */
   onStop?: () => void;
   /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */

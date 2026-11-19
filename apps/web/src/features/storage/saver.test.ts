@@ -14,9 +14,15 @@ const msg = (id: string, text = id, role: "user" | "assistant" = "user"): UIMess
   parts: [{ type: "text", content: text }],
 });
 
-// A store with `stored` messages and the given turn. Nothing here is conversation text that
-// matters: the saver only moves messages around.
-function fakeStore(stored: number | null, turn: TurnState | null = null) {
+// A store with `stored` messages and the given turn. Its last stored message is `last`, or by
+// default the one the history being sent has at that place, as when both are the same history.
+// Nothing here is conversation text that matters: the saver only moves messages around.
+function fakeStore(
+  stored: number | null,
+  turn: TurnState | null,
+  last: string | null | undefined,
+  sent: { messages: ReadonlyArray<UIMessage> },
+) {
   const fail: { next: StorageErrorCode | null } = { next: null };
   const guard = () => {
     if (fail.next) throw new StorageError(fail.next);
@@ -24,7 +30,9 @@ function fakeStore(stored: number | null, turn: TurnState | null = null) {
   const store = {
     head: vi.fn(async () => {
       guard();
-      return stored === null ? null : { nextSeq: stored };
+      if (stored === null) return null;
+      const same = stored > 0 ? (sent.messages[stored - 1]?.id ?? null) : null;
+      return { record: { nextSeq: stored }, lastMessageId: last === undefined ? same : last };
     }),
     turn: vi.fn(async () => turn),
     create: vi.fn(async (_input: { messages: ReadonlyArray<UIMessage> }) => {
@@ -44,17 +52,29 @@ function fakeStore(stored: number | null, turn: TurnState | null = null) {
   return { store: store as unknown as ConversationStore, fail, ...store };
 }
 
-function setup(stored: number | null, turn: TurnState | null = null, existed = false) {
-  const fake = fakeStore(stored, turn);
+function setup(
+  stored: number | null,
+  turn: TurnState | null = null,
+  existed = false,
+  last?: string | null,
+) {
+  const sent: { messages: ReadonlyArray<UIMessage> } = { messages: [] };
+  const fake = fakeStore(stored, turn, last, sent);
   const statuses: Array<SaveStatus> = [];
   const onSaved = vi.fn();
   const saver = new ConversationSaver({
     store: fake.store,
     id: "c1",
     existed,
+    stopWait: { tries: 3, delayMs: 1 },
     onStatus: (s) => statuses.push(s),
     onSaved,
   });
+  const beforeRun = saver.beforeRun.bind(saver);
+  saver.beforeRun = (messages) => {
+    sent.messages = messages;
+    return beforeRun(messages);
+  };
   return { ...fake, saver, statuses, onSaved };
 }
 
@@ -128,12 +148,31 @@ describe("ConversationSaver.beforeRun", () => {
     expect(statuses.at(-1)).toEqual({ kind: "unsaved", reason: "unavailable" });
   });
 
-  it("resolves with the stored count, which the request carries", async () => {
-    expect(await setup(null).saver.beforeRun([msg("a")])).toBe(1);
-    expect(await setup(1).saver.beforeRun([msg("a"), msg("b")])).toBe(2);
+  it("resolves with the stored history, which the request carries", async () => {
+    expect(await setup(null).saver.beforeRun([msg("a")])).toEqual({
+      nextSeq: 1,
+      lastMessageId: "a",
+    });
+    expect(await setup(1).saver.beforeRun([msg("a"), msg("b")])).toEqual({
+      nextSeq: 2,
+      lastMessageId: "b",
+    });
     expect(
       await setup(1, waiting("q")).saver.beforeRun([msg("a"), msg("q", "q", "assistant")]),
-    ).toBe(2);
+    ).toEqual({ nextSeq: 2, lastMessageId: "q" });
+  });
+
+  it("refuses a history of the same length with another last message, before touching the turn", async () => {
+    // Another tab abandoned this tab's question "q", answered its own "r", and now waits on a
+    // third. This tab still sends its answer to "q": two messages, like storage, but not the same.
+    const { saver, stop, answer, append, statuses } = setup(2, waiting("s"), false, "r");
+    await expect(saver.beforeRun([msg("a"), msg("q", "q", "assistant")])).rejects.toBeInstanceOf(
+      StorageError,
+    );
+    expect(stop).not.toHaveBeenCalled();
+    expect(answer).not.toHaveBeenCalled();
+    expect(append).not.toHaveBeenCalled();
+    expect(statuses.at(-1)).toEqual({ kind: "conflict", reason: "changed" });
   });
 
   it("skips a cut-off reply at the end, so Try again can continue past it", async () => {
@@ -143,7 +182,7 @@ describe("ConversationSaver.beforeRun", () => {
       msg("q", "q", "assistant"),
       msg("partial", "Half a repl", "assistant"),
     ]);
-    expect(count).toBe(2);
+    expect(count).toEqual({ nextSeq: 2, lastMessageId: "q" });
     expect(append).not.toHaveBeenCalled();
   });
 
@@ -224,6 +263,26 @@ describe("ConversationSaver.stopRun", () => {
     finishStop();
     await Promise.all([stopping, sending]);
     expect(head).toHaveBeenCalledOnce();
+  });
+
+  it("waits a little for a run whose request has not reached the server yet", async () => {
+    const { saver, turn, stop } = setup(1);
+    // The first look finds no turn; the action claims it a moment later.
+    turn
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ runId: "late", status: "running", message: null });
+    await saver.stopRun();
+    expect(stop).toHaveBeenCalledWith("c1", "late");
+  });
+
+  it("keeps a Stop whose run never turned up, and checks again before the next write", async () => {
+    const { saver, turn, stop } = setup(1);
+    await saver.stopRun(); // 3 looks, no turn
+    expect(turn).toHaveBeenCalledTimes(3);
+    // The run claimed the turn after all; the next write stops it first.
+    turn.mockResolvedValue({ runId: "late", status: "running", message: null });
+    await saver.beforeRun([msg("a")]);
+    expect(stop).toHaveBeenCalledWith("c1", "late");
   });
 
   it("keeps a Stop the server did not get, and sends it before the next write", async () => {

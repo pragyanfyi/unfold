@@ -32,7 +32,7 @@ vi.mock("#/features/chat/chat-pane", () => ({
   }: {
     threadId: string;
     initialMessages?: Array<UIMessage>;
-    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
+    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<unknown>;
     signInReturnTo?: string | null;
   }) => {
     useEffect(() => {

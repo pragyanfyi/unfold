@@ -7,7 +7,13 @@ import { handleChatRequest, type StartTurn, type TurnRun } from "../convex/chat/
 
 const SENTINEL_KEY = "sk-ant-FAKE-TURN-SENTINEL-0123456789";
 
-function post(forwardedProps: Record<string, unknown> = { ideaId: "idea-1", expectedNextSeq: 1 }) {
+function post(
+  forwardedProps: Record<string, unknown> = {
+    ideaId: "idea-1",
+    expectedNextSeq: 1,
+    expectedLastMessageId: "m1",
+  },
+) {
   return new Request("http://localhost/chat", {
     method: "POST",
     headers: { "content-type": "application/json", "x-byok-anthropic": SENTINEL_KEY },
@@ -91,7 +97,7 @@ describe("chat turns", () => {
     expect(startTurn).not.toHaveBeenCalled(); // no stored count
     await handleChatRequest(post(), { createAdapter: () => fakeText(), startTurn });
     expect(startTurn.mock.calls[0][0]).toBe("idea-1");
-    expect(startTurn.mock.calls[0][2]).toBe(1);
+    expect(startTurn.mock.calls[0][2]).toEqual({ nextSeq: 1, lastMessageId: "m1" });
     expect(createAdapter).not.toHaveBeenCalled();
   });
 

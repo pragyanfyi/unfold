@@ -46,15 +46,18 @@ export type TurnRun = {
   interrupt(): Promise<void>;
 };
 
+/** The stored history a request was sent from: how many messages, and the last one's id. */
+export type StoredHistory = { nextSeq: number; lastMessageId: string | null };
+
 /**
  * Claims the idea's turn for a new run. `missing`: no such idea of the caller's. `conflict`: the
- * idea's stored count is not `expectedNextSeq`, so the request carries history the server does
- * not hold.
+ * idea's stored history is not `history`, so the request carries history the server does not
+ * hold.
  */
 export type StartTurn = (
   ideaId: string,
   runId: string,
-  expectedNextSeq: number,
+  history: StoredHistory,
 ) => Promise<TurnRun | "missing" | "busy" | "conflict">;
 
 // How often a streaming reply is written to the turn document. The main cost lever (ADR 0015,
@@ -197,12 +200,19 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
     if (typeof ideaId !== "string" || ideaId.length === 0 || ideaId.length > 100) {
       return jsonError(400, "invalid_body", "The request has no idea.");
     }
-    // The stored count the browser reached before sending: the run's reply goes after it.
-    const expectedNextSeq = params.forwardedProps.expectedNextSeq;
-    if (typeof expectedNextSeq !== "number" || !Number.isSafeInteger(expectedNextSeq)) {
-      return jsonError(400, "invalid_body", "The request has no stored count.");
+    // The stored history the browser reached before sending: the run's reply goes after it.
+    const nextSeq = params.forwardedProps.expectedNextSeq;
+    const lastMessageId = params.forwardedProps.expectedLastMessageId;
+    if (typeof nextSeq !== "number" || !Number.isSafeInteger(nextSeq)) {
+      return jsonError(400, "invalid_body", "The request has no stored history.");
     }
-    const started = await deps.startTurn(ideaId, crypto.randomUUID(), expectedNextSeq);
+    if (
+      lastMessageId !== null &&
+      (typeof lastMessageId !== "string" || lastMessageId.length > 200)
+    ) {
+      return jsonError(400, "invalid_body", "The request has no stored history.");
+    }
+    const started = await deps.startTurn(ideaId, crypto.randomUUID(), { nextSeq, lastMessageId });
     if (started === "missing") return jsonError(404, "idea_missing", "That idea was not found.");
     if (started === "busy") return jsonError(409, "run_busy", "A reply is already being written.");
     if (started === "conflict") {

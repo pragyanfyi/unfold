@@ -17,6 +17,12 @@ export type ConversationRecord = {
   updatedAt: number; // last append or title change, ms since the epoch
 };
 
+/**
+ * The stored history a request is sent from (ADR 0015): how many messages are stored, and the id
+ * of the last one. The interview's action refuses a run unless the idea still holds exactly this.
+ */
+export type StoredHistory = { nextSeq: number; lastMessageId: string | null };
+
 export type LoadedConversation = { record: ConversationRecord; messages: Array<UIMessage> };
 
 // Kept in step with `MAX_TITLE_LENGTH` in packages/backend/convex/ideas.ts.

@@ -47,6 +47,12 @@ const FINISH = {
   summary: "You are building a picnic planner for families.",
 };
 
+// What a saver resolves with when it stored exactly the messages being sent.
+const storedAll = (messages: ReadonlyArray<UIMessage>) => ({
+  nextSeq: messages.length,
+  lastMessageId: messages.at(-1)?.id ?? null,
+});
+
 type Script = Parameters<ReturnType<typeof fakeText>["setResponses"]>[0];
 
 function stubNetwork(script: Script, options: { slow?: boolean } = {}) {
@@ -353,7 +359,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
               answered: m.parts.some((p) => p.type === "tool-call" && p.output !== undefined),
             })),
           );
-          return messages.length;
+          return storedAll(messages);
         }}
       />,
     );
@@ -378,7 +384,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
 
   it("does not store an idea that was refused for lack of a key", async () => {
     stubNetwork([]);
-    const beforeRun = vi.fn(async () => 0);
+    const beforeRun = vi.fn(async () => ({ nextSeq: 0, lastMessageId: null }));
     render(<ChatPane threadId="t1" byok={await byokWithKey(false)} beforeRun={beforeRun} />);
     await sendIdea("My idea");
     expect(await screen.findByLabelText("API key")).toBeTruthy();
@@ -409,7 +415,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     const { fetchMock } = stubNetwork([
       { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
     ]);
-    const beforeRun = vi.fn(async (messages: ReadonlyArray<UIMessage>) => messages.length);
+    const beforeRun = vi.fn(async (messages: ReadonlyArray<UIMessage>) => storedAll(messages));
     render(
       <ChatPane
         threadId="t1"

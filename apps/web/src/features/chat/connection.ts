@@ -1,13 +1,14 @@
 import { fetchServerSentEvents, type UIMessage } from "@tanstack/ai-react";
 import { deriveTree } from "@unfold/interview/derive-tree";
 import { buildOutline } from "@unfold/interview/outline";
+import type { StoredHistory } from "#/features/storage/types";
 
 // The connection to the interview, which runs in a Convex HTTP action (ADR 0015). Each request
 // carries, next to `provider` in `forwardedProps`:
 // - the tree outline (ADR 0012), and
 // - the idea's id, so the action records the run in that idea's turn document, and
-// - `expectedNextSeq`, the stored count `beforeRun` reached, so the action refuses a run from
-//   history the server does not hold (another tab moved on).
+// - `expectedNextSeq` and `expectedLastMessageId`, the stored history `beforeRun` reached, so the
+//   action refuses a run from history the server does not hold (another tab moved on).
 // The signed-in user's access token goes in `Authorization`; the provider key goes in
 // `x-byok-anthropic`, added by the keyring (ADR 0003). The action's address is the build's
 // `__CONVEX_SITE_URL__`, the same origin the CSP allows (`connect-src`, ADR 0015).
@@ -23,9 +24,9 @@ export type InterviewConnectionOptions = {
   /**
    * Runs before every request with the messages being sent, and the request is not sent if it
    * throws: storage must hold them first (`ConversationSaver.beforeRun`). Resolves with the
-   * number of stored messages.
+   * stored history.
    */
-  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<StoredHistory>;
 };
 
 export function chatUrl(siteUrl: string | undefined): string {
@@ -46,9 +47,15 @@ export function interviewConnection(options: InterviewConnectionOptions) {
     // The chat client always sends UI messages (the other form is for calling an adapter
     // directly).
     const ui = messages as ReadonlyArray<UIMessage>;
-    const expectedNextSeq = await options.beforeRun?.(ui);
+    const stored = await options.beforeRun?.(ui);
     const outline = buildOutline(deriveTree(ui));
-    const props = { ...data, outline, ideaId: options.ideaId, expectedNextSeq };
+    const props = {
+      ...data,
+      outline,
+      ideaId: options.ideaId,
+      expectedNextSeq: stored?.nextSeq,
+      expectedLastMessageId: stored?.lastMessageId,
+    };
     yield* base.connect(messages, props, abortSignal, runContext);
   };
   return { ...base, connect };

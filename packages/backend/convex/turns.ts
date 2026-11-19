@@ -9,6 +9,7 @@ import {
   findOwned,
   findTurn,
   insertMessages,
+  lastMessageId,
   owner,
   record,
   toRecord,
@@ -90,8 +91,9 @@ export const get = query({
  * Starts a run on the idea `id` for the user `ownerId`, whom the action has signed in. Allowed
  * only when the idea has no turn or an interrupted one, which the new run replaces. Fails with
  * `missing` when the user has no such idea, `busy` while another run owns the turn, and
- * `conflict` unless the idea holds exactly `expectedNextSeq` messages: the run's request carries
- * that history, and its reply is appended after it.
+ * `conflict` unless the idea holds exactly `expectedNextSeq` messages, the last of them
+ * `expectedLastMessageId`: the run's request carries that history, and its reply is appended after
+ * it. Two tabs can hold histories of the same length that differ, so the count alone is not enough.
  */
 export const start = internalMutation({
   args: {
@@ -99,15 +101,17 @@ export const start = internalMutation({
     id: v.string(),
     runId: v.string(),
     expectedNextSeq: v.number(),
+    expectedLastMessageId: v.union(v.string(), v.null()),
   },
   returns: v.id("ideas"),
-  handler: async (ctx, { ownerId, id, runId, expectedNextSeq }) => {
+  handler: async (ctx, { ownerId, id, runId, expectedNextSeq, expectedLastMessageId }) => {
     checkRunId(runId);
     const idea = await findOwned(ctx, ownerId, id);
     if (!idea) fail("missing");
     const turn = await findTurn(ctx, idea._id);
     if (turn && turn.status !== "interrupted") fail("busy");
     if (idea.nextSeq !== expectedNextSeq) fail("conflict");
+    if ((await lastMessageId(ctx, idea)) !== expectedLastMessageId) fail("conflict");
     if (turn) await ctx.db.delete(turn._id);
     const now = Date.now();
     await ctx.db.insert("turns", { ideaId: idea._id, runId, status: "running", lastWriteAt: now });

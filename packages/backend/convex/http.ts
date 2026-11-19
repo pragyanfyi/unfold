@@ -49,14 +49,15 @@ function errorCode(error: unknown): string | null {
 
 // Builds the hold on one idea's turn from the action's context. The key is not in scope here.
 function turnStarter(ctx: ActionCtx, ownerId: Id<"users">): StartTurn {
-  return async (id, runId, expectedNextSeq) => {
+  return async (id, runId, history) => {
     let ideaId: Id<"ideas">;
     try {
       ideaId = await ctx.runMutation(internal.turns.start, {
         ownerId,
         id,
         runId,
-        expectedNextSeq,
+        expectedNextSeq: history.nextSeq,
+        expectedLastMessageId: history.lastMessageId,
       });
     } catch (error) {
       const code = errorCode(error);

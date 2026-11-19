@@ -64,8 +64,15 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
  * deployment.
  */
 export function convexSiteUrl(env: { url?: string; siteUrl?: string }): string | undefined {
-  // `convexOrigins` lists the site origin last (see its return statement).
-  return env.url ? convexOrigins(env).at(-1) : undefined;
+  if (!env.url) return undefined;
+  // Validates both URLs the same way the CSP does, and throws on a bad one.
+  const origins = convexOrigins(env);
+  // An explicit site URL is the answer as given. Read it here, not from the CSP list, whose
+  // de-duplication drops it when it shares the client URL's origin.
+  if (env.siteUrl) return new URL(env.siteUrl).origin;
+  // Otherwise it was inferred from a `<name>.convex.cloud` URL: a `.convex.site` origin, which
+  // never equals the client's, so it is the list's last entry.
+  return origins.at(-1);
 }
 
 const CLOUD = ".convex.cloud";

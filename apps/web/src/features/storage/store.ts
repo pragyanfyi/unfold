@@ -30,8 +30,11 @@ export type TurnState = {
 };
 
 export interface ConversationStore {
-  /** The record without its messages. `null` when the signed-in user has no such conversation. */
-  head(id: string): Promise<ConversationRecord | null>;
+  /**
+   * The record and its last stored message's id, without the messages. `null` when the signed-in
+   * user has no such conversation.
+   */
+  head(id: string): Promise<{ record: ConversationRecord; lastMessageId: string | null } | null>;
   /** The idea's turn, if a run is streaming or waiting for an answer. */
   turn(id: string): Promise<TurnState | null>;
   /**

@@ -13,6 +13,7 @@ import { askRound, proposeFinish } from "@unfold/interview/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "#/features/auth/session";
 import { getByok } from "#/features/byok/key-store";
+import type { StoredHistory } from "#/features/storage/types";
 import { chatUrl, interviewConnection } from "./connection";
 import { turnProblem } from "./turn-problem";
 
@@ -46,7 +47,7 @@ export function useInterviewChat(
     byok?: ReturnType<typeof getByok>;
     onFinish?: (message: UIMessage) => void;
     /** Runs before every request; the request is not sent if it throws (ADR 0015). */
-    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
+    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<StoredHistory>;
     /** Called when the user stops a run, so storage can end it on the server too. */
     onStop?: () => void;
   } = {},
@@ -119,7 +120,12 @@ export function useInterviewChat(
         ideaId: threadId,
         url: chatUrl(__CONVEX_SITE_URL__),
         getToken: () => getToken.current(),
-        beforeRun: (messages) => beforeRun.current?.(messages) ?? Promise.resolve(messages.length),
+        beforeRun: (messages) =>
+          beforeRun.current?.(messages) ??
+          Promise.resolve({
+            nextSeq: messages.length,
+            lastMessageId: messages.at(-1)?.id ?? null,
+          }),
       }),
     [threadId],
   );
