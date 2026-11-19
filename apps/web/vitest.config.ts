@@ -8,6 +8,8 @@ export default defineConfig({
   // Mirrors the build-time constant that vite.config.ts injects.
   define: { __APP_VERSION__: JSON.stringify("test-current"), __CONVEX_ORIGINS__: "[]" },
   test: {
+    // Where the interview's HTTP action is, for tests that build the chat connection.
+    env: { VITE_CONVEX_SITE_URL: "http://convex.test" },
     // Pure-logic tests run in node. A test that needs a DOM opts in with
     // `// @vitest-environment jsdom` at the top of the file.
     environment: "node",

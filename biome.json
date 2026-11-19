@@ -51,10 +51,11 @@
       "includes": [
         "apps/web/src/features/chat/**",
         "apps/web/src/features/byok/**",
-        "apps/web/src/routes/api/**",
+        "packages/backend/convex/chat/**",
+        "packages/backend/convex/http.ts",
         "!**/*.test.ts",
         "!**/*.test.tsx",
-        "!apps/web/src/features/chat/safe-log.ts"
+        "!packages/backend/convex/chat/safeLog.ts"
       ],
       "plugins": [
         "./biome-plugins/no-console-on-chat-path.grit",

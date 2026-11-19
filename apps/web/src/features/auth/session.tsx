@@ -1,8 +1,16 @@
 import { useOauth, useSignInWithGoogle } from "@convex-dev/auth/methods/google/react";
-import { ConvexAuthProvider, useAuthActions } from "@convex-dev/auth/react";
+import { ConvexAuthProvider, useAuthActions, useAuthToken } from "@convex-dev/auth/react";
 import { api } from "@unfold/backend/convex/_generated/api";
 import { useConvexAuth } from "convex/react";
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { getConvexClient } from "./convex-client";
 
@@ -21,6 +29,12 @@ export type Session = {
    */
   signInWithGoogle: (returnTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * The access token for calling our own HTTP action (the interview), or null when signed out.
+   * Read it when the request is made: it is renewed in the background. Treat it like a key: send
+   * it only to our own Convex deployment, never log it (ADR 0003, 0016).
+   */
+  getAccessToken: () => string | null;
 };
 
 export const SessionContext = createContext<Session | null>(null);
@@ -61,6 +75,9 @@ function ConvexSession({ children }: { children: ReactNode }) {
   const { signIn: startGoogle } = useSignInWithGoogle(api.auth);
   const { flowError } = useOauth();
   const { signOut } = useAuthActions();
+  const token = useAuthToken();
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
 
   // A flow that came back from Google without a session, for example when the user cancelled.
   useEffect(() => {
@@ -78,6 +95,7 @@ function ConvexSession({ children }: { children: ReactNode }) {
           toast.error("Google sign-in could not start. Try again.", { id: "sign-in-error" });
         }
       },
+      getAccessToken: () => tokenRef.current,
       async signOut() {
         try {
           await signOut();

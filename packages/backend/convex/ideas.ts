@@ -167,6 +167,17 @@ export const list = query({
   },
 });
 
+/** One idea's record, without its messages, or null when the caller has no such idea. */
+export const get = query({
+  args: { id: v.string() },
+  returns: v.union(v.null(), record),
+  handler: async (ctx, { id }) => {
+    const userId = await owner(ctx);
+    const idea = await findOwned(ctx, userId, id);
+    return idea ? toRecord(idea) : null;
+  },
+});
+
 /** One idea and its messages in `seq` order, or null when the caller has no such idea. */
 export const load = query({
   args: { id: v.string() },

@@ -9,6 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as chat_handler from "../chat/handler.js";
+import type * as chat_safeLog from "../chat/safeLog.js";
+import type * as chat_testProviderUrl from "../chat/testProviderUrl.js";
+import type * as http from "../http.js";
 import type * as ideas from "../ideas.js";
 import type * as turns from "../turns.js";
 import type * as users from "../users.js";
@@ -21,6 +25,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  "chat/handler": typeof chat_handler;
+  "chat/safeLog": typeof chat_safeLog;
+  "chat/testProviderUrl": typeof chat_testProviderUrl;
+  http: typeof http;
   ideas: typeof ideas;
   turns: typeof turns;
   users: typeof users;

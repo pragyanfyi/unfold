@@ -24,8 +24,8 @@ import {
   logSafe,
   maskText,
   type SafeLogger,
-} from "./safe-log";
-import { testProviderBaseUrl } from "./test-provider-url";
+} from "./safeLog";
+import { testProviderBaseUrl } from "./testProviderUrl";
 
 // Limits for one turn. The whole conversation travels with every request (the server
 // holds no state, ADR 0012), so these bound the cost of a request, not of a conversation.

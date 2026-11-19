@@ -48,6 +48,26 @@ async function run<T>(work: () => Promise<T>): Promise<T> {
 
 export function createConvexStore(client: ConvexCalls): ConversationStore {
   return {
+    head: (id) => run(() => client.query(api.ideas.get, { id })),
+
+    turn: (id) => run(() => client.query(api.turns.get, { id })),
+
+    answer: (id, { runId, expectedNextSeq, message }) =>
+      run(() =>
+        client.mutation(api.turns.answer, {
+          id,
+          runId,
+          expectedNextSeq,
+          schemaVersion: SCHEMA_VERSION,
+          message: encodeMessage(message),
+        }),
+      ),
+
+    stop: (id, runId) =>
+      run(async () => {
+        await client.mutation(api.turns.stop, { id, runId });
+      }),
+
     load: (id) =>
       run(async (): Promise<LoadedConversation | null> => {
         const loaded = await client.query(api.ideas.load, { id });

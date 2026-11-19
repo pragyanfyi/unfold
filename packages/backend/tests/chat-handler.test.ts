@@ -338,7 +338,7 @@ describe("chat route: key-leak check (ADR 0003, item 6)", () => {
     vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       out.push(String(args[0]));
     });
-    const { libraryLogger, logSafe } = await import("../convex/chat/safe-log");
+    const { libraryLogger, logSafe } = await import("../convex/chat/safeLog");
     // The key straddles the 300th character: cutting first would leave a partial key.
     libraryLogger(logSafe, [SENTINEL_KEY]).error(`${"a".repeat(290)}${SENTINEL_KEY}`);
     const line = out.join("\n");

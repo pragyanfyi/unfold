@@ -27,6 +27,13 @@ async function storedMessages(page: Page, accessToken: string) {
   return loaded?.messages.length ?? 0;
 }
 
+// The status of the run that owns the idea's turn at the page's address, read as the signed-in
+// user: `waiting` once the server has the round and is waiting for the answer.
+async function turnStatus(page: Page, accessToken: string) {
+  const id = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  return (await backendAs(accessToken).query(api.turns.get, { id }))?.status ?? null;
+}
+
 const chat = (page: Page) => page.getByRole("region", { name: "Interview chat" });
 
 const SAVED_URL = /\/c\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -50,8 +57,11 @@ test("saves an idea, lists it, and restores the interview after each reload", as
   await expect(page).toHaveURL(SAVED_URL);
   await expect(page.getByRole("link", { name: idea })).toBeVisible();
 
-  // A round still waiting for an answer is not stored, so the reload asks it again.
+  // The round is not a stored message yet: the server holds it in the idea's turn document until
+  // the user answers (ADR 0015), so the browser has nothing of it to save.
   await expect.poll(() => storedMessages(page, accessToken)).toBe(1);
+  await expect.poll(() => turnStatus(page, accessToken)).toBe("waiting");
+  // After a reload this tab no longer has the question, so Try again abandons it and asks anew.
   await page.reload();
   await expect(chat(page).getByText(idea, { exact: true })).toBeVisible();
   const stopped = page.getByRole("alert").filter({ hasText: "The reply stopped" });

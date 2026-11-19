@@ -10,12 +10,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { handleChatRequest } from "@unfold/backend/convex/chat/handler";
 import type { Tree } from "@unfold/interview/derive-tree";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
 import type { Session } from "#/features/auth/session";
-import { handleChatRequest } from "./chat-handler";
 import { ChatPane } from "./chat-pane";
 
 // Signed in, as the chat is used once onboarding is done (ADR 0016). The gate itself is tested
@@ -334,77 +334,87 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     parts: [{ type: "text" as const, content: "A picnic planner" }],
   };
 
-  it("offers only growing prefixes of messages that never change afterwards", async () => {
+  it("stores what the browser knows before each request: the idea, then the answered round", async () => {
     stubNetwork([
       { text: "Let's start.", toolCalls: [{ name: "ask_round", input: ROUND }] },
       { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
       { text: "Great, we are done." },
     ]);
-    const offered: Array<Array<{ id: string }>> = [];
-    const snapshots: Array<string> = [];
+    const offered: Array<Array<{ id: string; role: string; answered: boolean }>> = [];
     render(
       <ChatPane
         threadId="t1"
         byok={await byokWithKey(true)}
-        onSavable={(messages) => {
-          offered.push(messages.map((m) => ({ id: m.id })));
-          snapshots.push(JSON.stringify(messages));
+        beforeRun={async (messages) => {
+          offered.push(
+            messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              answered: m.parts.some((p) => p.type === "tool-call" && p.output !== undefined),
+            })),
+          );
         }}
       />,
     );
     await sendIdea();
     await screen.findByText("Who is it for?");
-    // The unanswered round is not offered.
-    expect(offered.at(-1)).toHaveLength(1);
+    // The first request carries only the idea.
+    expect(offered).toHaveLength(1);
+    expect(offered[0].map((m) => m.role)).toEqual(["user"]);
     fireEvent.click(screen.getByRole("radio", { name: /A\s*Families/ }));
     fireEvent.click(screen.getByRole("button", { name: "Submit answers" }));
     fireEvent.click(await screen.findByRole("button", { name: "Looks right" }));
     await screen.findByText("Great, we are done.");
 
-    await waitFor(() => expect(offered.at(-1)).toHaveLength(4));
-    for (let i = 1; i < offered.length; i++) {
-      expect(offered[i].length).toBeGreaterThan(offered[i - 1].length);
-      expect(offered[i].slice(0, offered[i - 1].length)).toEqual(offered[i - 1]);
-    }
-    // Append-only: each offered message is already in its final form.
-    const final = JSON.parse(snapshots.at(-1) ?? "[]");
-    for (const snapshot of snapshots) {
-      const parsed = JSON.parse(snapshot) as Array<unknown>;
-      expect(parsed).toEqual(final.slice(0, parsed.length));
-    }
+    // Each resume carries the answered round, which storage must hold before the next run.
+    expect(offered).toHaveLength(3);
+    expect(offered[1].map((m) => [m.role, m.answered])).toEqual([
+      ["user", false],
+      ["assistant", true],
+    ]);
+    expect(offered[2]).toHaveLength(3);
   });
 
-  it("does not offer an idea that was refused for lack of a key", async () => {
+  it("does not store an idea that was refused for lack of a key", async () => {
     stubNetwork([]);
-    const onSavable = vi.fn();
-    render(<ChatPane threadId="t1" byok={await byokWithKey(false)} onSavable={onSavable} />);
+    const beforeRun = vi.fn(async () => {});
+    render(<ChatPane threadId="t1" byok={await byokWithKey(false)} beforeRun={beforeRun} />);
     await sendIdea("My idea");
     expect(await screen.findByLabelText("API key")).toBeTruthy();
-    expect(onSavable).not.toHaveBeenCalled();
+    expect(beforeRun).not.toHaveBeenCalled();
   });
 
-  it("offers the idea of a first turn that failed after it was sent, but never a half reply", async () => {
-    stubNetwork([{ error: "The provider is unavailable." }]);
-    const onSavable = vi.fn();
-    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onSavable={onSavable} />);
+  it("sends nothing when storage fails, and says the reply failed", async () => {
+    const { fetchMock } = stubNetwork([{ text: "must not be asked" }]);
+    const beforeRun = vi.fn(async () => {
+      throw new Error("not stored");
+    });
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} beforeRun={beforeRun} />);
     await sendIdea();
     await screen.findByText("The reply failed");
-    // The offer comes from a passive effect, which can run after the error is on screen.
-    await waitFor(() => expect(onSavable).toHaveBeenCalledTimes(1));
-    expect(onSavable.mock.calls[0][0].map((m: { role: string }) => m.role)).toEqual(["user"]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("tells storage when the user stops a run", async () => {
+    stubNetwork([{ text: "A long reply that is slow to arrive. ".repeat(10) }], { slow: true });
+    const onStop = vi.fn();
+    render(<ChatPane threadId="t1" byok={await byokWithKey(true)} onStop={onStop} />);
+    await sendIdea();
+    fireEvent.click(await screen.findByRole("button", { name: /stop/i }));
+    expect(onStop).toHaveBeenCalledOnce();
   });
 
   it("continues a restored interview whose reply was cut off, from the stored answer", async () => {
     const { fetchMock } = stubNetwork([
       { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
     ]);
-    const onSavable = vi.fn();
+    const beforeRun = vi.fn(async (_messages: ReadonlyArray<UIMessage>) => {});
     render(
       <ChatPane
         threadId="t1"
         byok={await byokWithKey(true)}
         initialMessages={[idea, answeredRound]}
-        onSavable={onSavable}
+        beforeRun={beforeRun}
       />,
     );
     // Opening it spends nothing: the user decides.
@@ -415,8 +425,8 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     // The stored round is kept as it was: the next request carries its answer.
     expect(String((fetchMock.mock.calls[0][1] as RequestInit).body)).toContain("optionId");
     expect(screen.getByText("Asked 1 question")).toBeTruthy();
-    // The 2 stored messages are not offered again, and the new proposal is still unanswered.
-    expect(onSavable).not.toHaveBeenCalled();
+    // Storage is asked to hold the 2 restored messages, as for any request.
+    expect(beforeRun.mock.calls[0][0]).toHaveLength(2);
   });
 
   it("continues a confirmed finish whose closing reply was never stored", async () => {

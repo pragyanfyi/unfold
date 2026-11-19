@@ -6,7 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { type ActionCtx, httpAction } from "./_generated/server";
 import { ALLOWED_REDIRECT_ORIGINS } from "./auth";
 import { handleChatRequest, type StartTurn, type TurnRun } from "./chat/handler";
-import { logSafe } from "./chat/safe-log";
+import { logSafe } from "./chat/safeLog";
 
 // The interview runs here (ADR 0015). The browser calls `POST /chat` on the deployment's HTTP
 // actions URL with the signed-in user's access token and the provider key in `x-byok-<provider>`.
@@ -20,7 +20,7 @@ function corsHeaders(request: Request): Record<string, string> {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, authorization, x-byok-anthropic",
+    "access-control-allow-headers": "content-type, authorization, x-byok-anthropic, x-run-id",
     // A tab reuses one preflight for many turns. Chromium caps this at 2 hours.
     "access-control-max-age": "7200",
     vary: "origin",

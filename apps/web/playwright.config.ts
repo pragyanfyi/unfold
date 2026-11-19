@@ -40,8 +40,9 @@ export default defineConfig({
       url: `http://127.0.0.1:${MOCK_PORT}/health`,
     },
     {
-      // The variable points the server's provider adapter at the mock (loopback only).
-      command: `pnpm exec wrangler dev --config dist/server/wrangler.json --port ${APP_PORT} --var UNFOLD_TEST_PROVIDER_URL:http://127.0.0.1:${MOCK_PORT}`,
+      // The Worker only serves pages. The Convex backend above has the variable that points the
+      // interview's action at the mock (e2e-backend.mjs).
+      command: `pnpm exec wrangler dev --config dist/server/wrangler.json --port ${APP_PORT}`,
       url: `http://localhost:${APP_PORT}`,
       timeout: 120_000,
     },

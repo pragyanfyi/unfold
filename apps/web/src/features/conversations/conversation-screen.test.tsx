@@ -27,12 +27,12 @@ vi.mock("#/features/chat/chat-pane", () => ({
   ChatPane: ({
     threadId,
     initialMessages,
-    onSavable,
+    beforeRun,
     signInReturnTo,
   }: {
     threadId: string;
     initialMessages?: Array<UIMessage>;
-    onSavable?: (messages: Array<UIMessage>) => void;
+    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<void>;
     signInReturnTo?: string | null;
   }) => {
     useEffect(() => {
@@ -45,7 +45,9 @@ vi.mock("#/features/chat/chat-pane", () => ({
         <button
           type="button"
           onClick={() =>
-            onSavable?.([{ id: "m1", role: "user", parts: [{ type: "text", content: "An idea" }] }])
+            void beforeRun?.([
+              { id: "m1", role: "user", parts: [{ type: "text", content: "An idea" }] },
+            ])
           }
         >
           save idea
@@ -57,6 +59,10 @@ vi.mock("#/features/chat/chat-pane", () => ({
 
 const ideaList = vi.fn();
 const store = {
+  head: vi.fn(),
+  turn: vi.fn(),
+  answer: vi.fn(),
+  stop: vi.fn(),
   load: vi.fn(),
   create: vi.fn(),
   append: vi.fn(),
@@ -128,6 +134,7 @@ beforeEach(() => {
   for (const fn of Object.values(store)) fn.mockReset();
   ideaList.mockReset();
   ideaList.mockResolvedValue([]);
+  store.head.mockResolvedValue(null); // a new idea: nothing is stored yet
   store.create.mockResolvedValue({});
   const noop = class {
     observe() {}

@@ -44,7 +44,8 @@ export function ChatPane({
   threadId,
   initialMessages,
   onFinish,
-  onSavable,
+  beforeRun,
+  onStop,
   onStartOver,
   onTree,
   selectedId = null,
@@ -56,8 +57,10 @@ export function ChatPane({
   threadId: string;
   initialMessages?: Array<UIMessage>;
   onFinish?: (message: UIMessage) => void;
-  /** Called when more of the conversation may be stored (ADR 0013). */
-  onSavable?: (messages: Array<UIMessage>) => void;
+  /** Runs before every request; storage must hold the messages first (ADR 0015). */
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<void>;
+  /** Called when the user stops a run. */
+  onStop?: () => void;
   /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */
   onStartOver?: () => void;
   /** Called with the decision tree whenever its content changes (ADR 0012). */
@@ -75,7 +78,7 @@ export function ChatPane({
   signInReturnTo?: string | null;
   byok?: ReturnType<typeof getByok>;
 }) {
-  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
+  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, beforeRun, onStop });
   // The round being answered, and its question nodes in order (#31).
   const pendingMessageId = chat.pending
     ? (chat.messages.find((message) =>

@@ -161,7 +161,6 @@ function Conversation({
 }) {
   const saver = useConversationSaver({
     id,
-    stored: loaded?.messages.length ?? 0,
     onFirstSave,
   });
   // The chat derives the tree and the canvas draws it. The selected node lives here, outside
@@ -189,7 +188,8 @@ function Conversation({
             <ChatPane
               threadId={id}
               initialMessages={loaded?.messages}
-              onSavable={saver.onSavable}
+              beforeRun={saver.beforeRun}
+              onStop={saver.stopRun}
               onStartOver={onNew}
               signInReturnTo={signInReturnTo}
               onTree={setTree}
