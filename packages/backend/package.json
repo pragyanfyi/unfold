@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@convex-dev/auth": "2.0.0",
+    "@unfold/interview": "workspace:*",
     "convex": "^1.50.0"
   },
   "devDependencies": {

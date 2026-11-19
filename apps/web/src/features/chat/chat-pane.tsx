@@ -1,4 +1,8 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
+import type { Tree } from "@unfold/interview/derive-tree";
+import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
+import type { FinishDecision } from "@unfold/interview/round-answers";
+import { proposeFinish } from "@unfold/interview/tools";
 import { LoaderCircleIcon } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
@@ -18,17 +22,13 @@ import { clearPendingIdea, readPendingIdea, savePendingIdea } from "#/features/a
 import { useSession } from "#/features/auth/session";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
-import type { Tree } from "#/features/tree/derive-tree";
 import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
 import { parkFocus, rescueFocus } from "#/lib/focus";
 import { ChatMessage } from "./chat-message";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
 import { FinishCard } from "./finish-card";
-import { DEFAULT_PROVIDER } from "./providers";
-import type { FinishDecision } from "./round-answers";
 import { RoundForm } from "./round-form";
-import { proposeFinish } from "./tools";
 import { TurnError } from "./turn-error";
 import { describeProblem } from "./turn-problem";
 import { useInterviewChat } from "./use-interview-chat";

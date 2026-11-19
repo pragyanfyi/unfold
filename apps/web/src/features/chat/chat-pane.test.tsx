@@ -10,11 +10,11 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { Tree } from "@unfold/interview/derive-tree";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
 import type { Session } from "#/features/auth/session";
-import type { Tree } from "#/features/tree/derive-tree";
 import { handleChatRequest } from "./chat-handler";
 import { ChatPane } from "./chat-pane";
 

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
+import type { Tree } from "@unfold/interview/derive-tree";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type PaneTab, TwoPane } from "#/components/two-pane";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
@@ -13,7 +14,6 @@ import { ChatPane, type Reveal } from "#/features/chat/chat-pane";
 import { conversationQuery } from "#/features/storage/queries";
 import type { LoadedConversation } from "#/features/storage/types";
 import { isUuid, uuidv7 } from "#/features/storage/uuid";
-import type { Tree } from "#/features/tree/derive-tree";
 import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
 import { SaveNotice } from "./save-notice";

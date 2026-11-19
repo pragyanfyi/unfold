@@ -1,10 +1,6 @@
 import { type UIMessage, useChat } from "@tanstack/ai-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getByok } from "#/features/byok/key-store";
-import { savablePrefix } from "#/features/storage/savable";
-import { deriveTree, type Tree } from "#/features/tree/derive-tree";
-import { interviewConnection } from "./connection";
-import { DEFAULT_PROVIDER } from "./providers";
+import { deriveTree, type Tree } from "@unfold/interview/derive-tree";
+import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
 import {
   type Answer,
   buildRoundAnswers,
@@ -12,8 +8,12 @@ import {
   type FinishInput,
   type RoundAnswers,
   type RoundInput,
-} from "./round-answers";
-import { askRound, proposeFinish } from "./tools";
+} from "@unfold/interview/round-answers";
+import { askRound, proposeFinish } from "@unfold/interview/tools";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getByok } from "#/features/byok/key-store";
+import { savablePrefix } from "#/features/storage/savable";
+import { interviewConnection } from "./connection";
 import { turnProblem } from "./turn-problem";
 
 // One connection for the app: it holds no state, and it adds the tree outline to each request.

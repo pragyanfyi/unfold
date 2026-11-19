@@ -1,6 +1,6 @@
 import { fetchServerSentEvents, type UIMessage } from "@tanstack/ai-react";
-import { deriveTree } from "#/features/tree/derive-tree";
-import { buildOutline } from "#/features/tree/outline";
+import { deriveTree } from "@unfold/interview/derive-tree";
+import { buildOutline } from "@unfold/interview/outline";
 
 // The connection to the chat route. It adds the tree outline (ADR 0012) to every request,
 // next to `provider` in `forwardedProps`.

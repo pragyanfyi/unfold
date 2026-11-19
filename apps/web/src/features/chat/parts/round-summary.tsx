@@ -1,3 +1,8 @@
+import {
+  describeAnswer,
+  type RoundAnswers,
+  type RoundInput,
+} from "@unfold/interview/round-answers";
 import { CircleCheckIcon } from "lucide-react";
 import { useState } from "react";
 import {
@@ -9,7 +14,6 @@ import {
   TraceTitle,
 } from "#/components/ui/trace";
 import { cn } from "#/lib/utils";
-import { describeAnswer, type RoundAnswers, type RoundInput } from "../round-answers";
 
 // A round that has been answered, collapsed in the history. When the user selects one of its
 // nodes on the canvas (#31), it opens and marks that question.

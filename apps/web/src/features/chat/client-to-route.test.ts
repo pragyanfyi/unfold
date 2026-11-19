@@ -1,10 +1,10 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-react";
 import { defineByok, memoryStorage } from "@tanstack/ai-react/byok";
+import { askRound } from "@unfold/interview/tools";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleChatRequest } from "./chat-handler";
 import { interviewConnection } from "./connection";
-import { askRound } from "./tools";
 
 const SENTINEL_KEY = "sk-ant-FAKE-CLIENT-KEY-0123456789";
 

@@ -1,9 +1,9 @@
+import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
 import { type ReactNode, useId, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { DialogFooter } from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
-import { DEFAULT_PROVIDER } from "#/features/chat/providers";
 import { getByok } from "./key-store";
 import { describeSaveError } from "./save-error";
 

@@ -1,6 +1,6 @@
 import { ClientOnly } from "@tanstack/react-router";
+import type { Tree } from "@unfold/interview/derive-tree";
 import { lazy, Suspense } from "react";
-import type { Tree } from "#/features/tree/derive-tree";
 
 // React Flow and the layout code load only when there is a tree to draw, and only in the
 // browser (ADR 0014).

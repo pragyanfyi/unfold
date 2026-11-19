@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { describeAnswer } from "#/features/chat/round-answers";
 import type { Tree } from "./derive-tree";
+import { describeAnswer } from "./round-answers";
 
 // The compact outline of the tree that travels with every chat request (ADR 0012, "Context
 // sent each turn"). The model reads it to name earlier ids and to see which questions are

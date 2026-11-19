@@ -7,8 +7,15 @@ import {
 } from "@tanstack/ai";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
-import { outlineSchema, renderOutline } from "#/features/tree/outline";
-import { DEFAULT_PROVIDER, isSupportedProvider, PROVIDERS, type ProviderId } from "./providers";
+import { outlineSchema, renderOutline } from "@unfold/interview/outline";
+import {
+  DEFAULT_PROVIDER,
+  isSupportedProvider,
+  PROVIDERS,
+  type ProviderId,
+} from "@unfold/interview/providers";
+import { SYSTEM_PROMPT } from "@unfold/interview/system-prompt";
+import { interviewTools } from "@unfold/interview/tools";
 import {
   LIBRARY_DEBUG_CATEGORIES,
   libraryLogger,
@@ -16,9 +23,7 @@ import {
   maskText,
   type SafeLogger,
 } from "./safe-log";
-import { SYSTEM_PROMPT } from "./system-prompt";
 import { testProviderBaseUrl } from "./test-provider-url";
-import { interviewTools } from "./tools";
 
 // Limits for one turn. The whole conversation travels with every request (the server
 // holds no state, ADR 0012), so these bound the cost of a request, not of a conversation.

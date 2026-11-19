@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { UIMessage } from "@tanstack/ai-react";
+import type { UIMessage } from "@tanstack/ai";
 import { describe, expect, it } from "vitest";
 import { deriveTree } from "./derive-tree";
 
@@ -345,7 +345,7 @@ describe("deriveTree", () => {
   // The E2E journey is the one scripted conversation the canvas will be asserted on (ADR 0011),
   // so it has to follow the protocol.
   it("accepts every turn of the E2E journey fixture", () => {
-    const file = new URL("../../../e2e/fixtures/interview.json", import.meta.url);
+    const file = new URL("../../../apps/web/e2e/fixtures/interview.json", import.meta.url);
     const { fixtures } = JSON.parse(readFileSync(file, "utf8")) as {
       fixtures: Array<{
         match: { userMessage: string };

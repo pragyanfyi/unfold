@@ -1,4 +1,4 @@
-import type { UIMessage } from "@tanstack/ai-react";
+import type { UIMessage } from "@tanstack/ai";
 import { describe, expect, it } from "vitest";
 import { deriveTree } from "./derive-tree";
 import { buildOutline, outlineSchema, renderOutline } from "./outline";

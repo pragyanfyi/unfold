@@ -1,5 +1,5 @@
 import type { UIMessage } from "@tanstack/ai-react";
-import type { Tree } from "#/features/tree/derive-tree";
+import type { Tree } from "@unfold/interview/derive-tree";
 
 // Why the model's last turn cannot be used, or null (ADR 0012, Validation). The chat shows
 // this as an error in place of the questionnaire, because a turn the tree rejects would give

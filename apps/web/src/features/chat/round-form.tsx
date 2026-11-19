@@ -1,9 +1,3 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "#/components/ui/button";
-import { Label } from "#/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "#/components/ui/radio-group";
-import { Textarea } from "#/components/ui/textarea";
-import { rescueFocus } from "#/lib/focus";
 import {
   type Answer,
   emptyAnswers,
@@ -11,7 +5,13 @@ import {
   isRoundComplete,
   optionLetter,
   type RoundQuestion,
-} from "./round-answers";
+} from "@unfold/interview/round-answers";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button } from "#/components/ui/button";
+import { Label } from "#/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "#/components/ui/radio-group";
+import { Textarea } from "#/components/ui/textarea";
+import { rescueFocus } from "#/lib/focus";
 
 // The questionnaire for one round (ADR 0012): a stepper, one question at a time. Each question
 // has a radio group (option A is the model's recommendation) and a note box. An answer is an
