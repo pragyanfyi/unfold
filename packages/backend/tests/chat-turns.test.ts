@@ -104,12 +104,15 @@ describe("chat turns", () => {
   it("accepts any stored message id as the last one, however long", async () => {
     const { startTurn } = fakeTurn();
     const long = "m".repeat(500);
+    const adapter = fakeText();
+    adapter.setResponses([{ text: "Tell me more." }]);
     const response = await handleChatRequest(
       post({ ideaId: "idea-1", expectedNextSeq: 1, expectedLastMessageId: long }),
-      { createAdapter: () => fakeText(), startTurn },
+      { createAdapter: () => adapter, startTurn },
     );
     await drain(response);
     expect(startTurn.mock.calls[0][2]).toEqual({ nextSeq: 1, lastMessageId: long });
+    expect(adapter.pendingResponses()).toBe(0);
   });
 
   it("answers 404 for an idea that is not the caller's, and 409 while busy or out of step", async () => {
