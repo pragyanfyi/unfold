@@ -56,6 +56,8 @@ Optional hardening: change the CI token to Editor on the single `unfold` Worker 
 
 Project `unfold` in team `pragyan-pandey`, created with the Convex CLI. Its production deployment is `calculating-tern-733` (`https://calculating-tern-733.convex.cloud`), in `aws-us-east-1` (US East, N. Virginia), which cannot be changed later. It is the project's default production deployment, so `convex deploy` targets it. Development uses a local backend (see `docs/operations/development.md`).
 
+A cloud development deployment, `dev/pragyan` (`calculating-warbler-958`, US East), was created on 2026-11-19 for the measurements in ADR 0015. It holds only test data and placeholder Google values; use it with `CONVEX_DEPLOYMENT=dev:calculating-warbler-958` without changing `.env.local`. Never set `E2E_PASSWORD_SIGN_UP` there except for a measurement, and remove it afterwards.
+
 ## Rolling back
 
 1. **Check which Worker version is live** (`pnpm exec wrangler deployments list` from `apps/web`). Do not assume: `wrangler deploy` makes an upload live as soon as it succeeds, so a later failure, or a failed smoke test (nothing rolls back), can leave the new Worker live.
