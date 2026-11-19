@@ -118,6 +118,15 @@ describe("ConversationSaver.beforeRun", () => {
     expect(stop).not.toHaveBeenCalled();
   });
 
+  it("never stores a reply without a question: the action stores those, so this one was cut off", async () => {
+    const { saver, append, statuses } = setup(1);
+    await expect(
+      saver.beforeRun([msg("a"), msg("partial", "Half a repl", "assistant"), msg("b")]),
+    ).rejects.toBeInstanceOf(StorageError);
+    expect(append).not.toHaveBeenCalled();
+    expect(statuses.at(-1)).toEqual({ kind: "unsaved", reason: "unavailable" });
+  });
+
   it("splits a long queue into writes the backend accepts", async () => {
     const { saver, append } = setup(1);
     const all = Array.from({ length: MAX_MESSAGES_PER_SAVE + 3 }, (_, i) => msg(`m${i}`));
@@ -157,6 +166,24 @@ describe("ConversationSaver.beforeRun", () => {
 });
 
 describe("ConversationSaver.stopRun", () => {
+  it("is queued with the writes, so the next request waits for it", async () => {
+    const { saver, stop, head } = setup(1, { runId: "r", status: "running", message: null });
+    let finishStop!: () => void;
+    stop.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStop = resolve;
+        }),
+    );
+    const stopping = saver.stopRun();
+    const sending = saver.beforeRun([msg("a")]);
+    await vi.waitFor(() => expect(stop).toHaveBeenCalled());
+    expect(head).not.toHaveBeenCalled();
+    finishStop();
+    await Promise.all([stopping, sending]);
+    expect(head).toHaveBeenCalledOnce();
+  });
+
   it("stops a running or waiting run, and leaves an interrupted one", async () => {
     const running = setup(1, { runId: "r", status: "running", message: null });
     await running.saver.stopRun();

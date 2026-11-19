@@ -71,8 +71,17 @@ export class ConversationSaver {
     return this.queue().catch(() => {});
   }
 
-  /** Stops the idea's running or waiting run, if any (the user pressed Stop). */
-  async stopRun(): Promise<void> {
+  /**
+   * Stops the idea's running or waiting run, if any (the user pressed Stop). Queued with the
+   * writes, so a request sent right after waits for it instead of finding the turn still busy.
+   */
+  stopRun(): Promise<void> {
+    const next = this.running.catch(() => {}).then(() => this.stopTurn());
+    this.running = next;
+    return next;
+  }
+
+  private async stopTurn(): Promise<void> {
     try {
       const turn = await this.options.store.turn(this.options.id);
       if (turn && turn.status !== "interrupted") {
@@ -130,6 +139,10 @@ export class ConversationSaver {
         await store.stop(id, turn.runId);
       }
     }
+    // Only the user's own messages, and an answered question, are the browser's to store. A reply
+    // with no question in it is stored by the action when its run ends, so one still pending here
+    // is a reply that was stopped or failed, and is never stored (ADR 0015).
+    if (pending.some(isReplyWithoutQuestion)) throw new StorageError("unavailable");
     while (pending.length > 0) {
       const batch = pending.slice(0, MAX_MESSAGES_PER_SAVE);
       await store.append(id, stored, batch);
@@ -152,6 +165,10 @@ export class ConversationSaver {
       this.options.onStatus({ kind: "unsaved", reason: "unavailable" });
     }
   }
+}
+
+function isReplyWithoutQuestion(message: UIMessage): boolean {
+  return message.role === "assistant" && !message.parts.some((part) => part.type === "tool-call");
 }
 
 function messageId(json: string | null): string | null {
