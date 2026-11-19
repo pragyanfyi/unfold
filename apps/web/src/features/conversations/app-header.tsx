@@ -4,12 +4,13 @@ import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import { SidebarTrigger, useSidebar } from "#/components/ui/sidebar";
 import { AccountButton } from "#/features/auth/account-button";
+import { KeyButton } from "#/features/byok/key-button";
 import { appHotkeys } from "#/features/hotkeys/registry";
 import { ShortcutsDialog } from "#/features/hotkeys/shortcuts-dialog";
 
 // The bar above the panes. It owns the app-wide shortcuts, and each one has a button here too
 // (docs/internals/hotkeys.md): the sidebar trigger and the shortcuts list. Sign in and out is
-// here too (ADR 0016).
+// here too (ADR 0016), and the API key (#47).
 export function AppHeader() {
   const { toggleSidebar } = useSidebar();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -21,6 +22,7 @@ export function AppHeader() {
       <SidebarTrigger />
       <h1 className="text-sm font-medium">Unfold</h1>
       <div className="ml-auto" />
+      <KeyButton />
       <AccountButton />
       <Button
         type="button"

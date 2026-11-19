@@ -1,6 +1,6 @@
 import { useByok } from "@tanstack/ai-react";
 import { DEFAULT_PROVIDER, PROVIDERS } from "@unfold/interview/providers";
-import { useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
   Dialog,
@@ -10,19 +10,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "#/components/ui/dialog";
+import { rescueFocus } from "#/lib/focus";
 import { ANTHROPIC_KEYS_URL, KeyForm } from "./key-form";
 import { getByok } from "./key-store";
 
 // `open` and `onOpenChange` are optional: the chat opens the dialog when a send is blocked for
-// lack of a key. Without them the dialog manages itself.
+// lack of a key. Without them the dialog manages itself. `trigger` replaces the default button
+// (the header has its own, #47); it must be a single element that takes a ref, like `Button`.
 export function KeyDialog({
   byok = getByok(),
   open: controlledOpen,
   onOpenChange: onControlledOpenChange,
+  trigger,
 }: {
   byok?: ReturnType<typeof getByok>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  trigger?: ReactNode;
 }) {
   const provider = DEFAULT_PROVIDER;
   const label = PROVIDERS[provider].label;
@@ -38,6 +42,13 @@ export function KeyDialog({
   // A save in the form. The key library does not order a save against a removal, so the
   // footer's actions wait for it: a removed key must not come back when the save finishes.
   const [saving, setSaving] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  // When the key is removed, the Remove (and Unlock) buttons go away, and the one the user
+  // pressed had focus: it goes to the key field. Only when focus is lost (lib/focus.ts).
+  const hasStatus = status !== undefined;
+  useEffect(() => {
+    if (!hasStatus) rescueFocus(input.current);
+  }, [hasStatus]);
 
   function onOpenChange(next: boolean) {
     setOpen(next);
@@ -81,9 +92,11 @@ export function KeyDialog({
   return (
     <Dialog open={open} onOpenChange={dismiss}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          {status ? `${label} key: ${status.masked}` : `Add ${label} API key`}
-        </Button>
+        {trigger ?? (
+          <Button variant="outline">
+            {status ? `${label} key: ${status.masked}` : `Add ${label} API key`}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -94,6 +107,7 @@ export function KeyDialog({
             {byok.storage.persistent
               ? "It is saved encrypted with a passkey."
               : "It is kept in memory for this tab only and is gone when you close it."}{" "}
+            {status ? "Saving a new key replaces the one you have. " : null}
             <KeysLink />
           </DialogDescription>
         </DialogHeader>
@@ -104,6 +118,7 @@ export function KeyDialog({
           message={error}
           disabled={busy}
           onBusyChange={setSaving}
+          inputRef={input}
           footer={
             <>
               {status?.state === "locked" ? (
