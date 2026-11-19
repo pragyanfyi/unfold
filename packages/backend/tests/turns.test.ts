@@ -414,6 +414,66 @@ describe("turns", () => {
     expect(await t.mutation(internal.turns.interrupt, { ideaId, runId: RUN })).toBe(true);
   });
 
+  it("never waits for an answer the idea cannot hold", async () => {
+    const { t, start } = await withIdea();
+    const ideaId = await start();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ideaId, { nextSeq: MAX_IDEA_MESSAGES });
+    });
+    expect(
+      await code(
+        t.mutation(internal.turns.end, {
+          ideaId,
+          runId: RUN,
+          message: reply(),
+          needsAnswer: true,
+        }),
+      ),
+    ).toBe("too-large");
+    // Still running, so the action can interrupt it and a new run can replace it.
+    expect((await turnOf(t, ideaId))?.status).toBe("running");
+    expect(await t.mutation(internal.turns.interrupt, { ideaId, runId: RUN })).toBe(true);
+    expect(await start(NEXT_RUN)).toBe(ideaId);
+  });
+
+  it("lets the owner abandon a waiting run, freeing the idea", async () => {
+    const { t, alice, start } = await withIdea();
+    const ideaId = await start();
+    await t.mutation(internal.turns.end, {
+      ideaId,
+      runId: RUN,
+      message: reply(),
+      needsAnswer: true,
+    });
+    await alice.as.mutation(api.turns.stop, { id: ID, runId: NEXT_RUN });
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("waiting");
+
+    await alice.as.mutation(api.turns.stop, { id: ID, runId: RUN });
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("interrupted");
+    expect(
+      await code(
+        alice.as.mutation(api.turns.answer, {
+          id: ID,
+          runId: RUN,
+          expectedNextSeq: 1,
+          schemaVersion: 1,
+          message: reply(),
+        }),
+      ),
+    ).toBe("stale");
+    expect(
+      (
+        await alice.as.mutation(api.ideas.append, {
+          id: ID,
+          expectedNextSeq: 1,
+          schemaVersion: 1,
+          messages: [message("m1")],
+        })
+      ).nextSeq,
+    ).toBe(2);
+    expect(await start(NEXT_RUN)).toBe(ideaId);
+  });
+
   it("marks a run interrupted once it has gone quiet for RUN_STALE_MS", async () => {
     vi.useFakeTimers();
     const { t, start } = await withIdea();

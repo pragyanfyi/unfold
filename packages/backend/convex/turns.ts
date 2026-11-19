@@ -34,11 +34,12 @@ import {
 
 /**
  * How long a running turn may go without a write before the scheduled check marks it
- * interrupted. Above the longest normal gap between batches: the action writes at least every
- * `RUN_HEARTBEAT_MS` while the model is quiet, so only a run that died goes this long.
+ * interrupted. Above the longest normal gap between batches: the action (#75, not built yet) must
+ * write at least every `RUN_HEARTBEAT_MS` while the model is quiet, so only a run that died goes
+ * this long.
  */
 export const RUN_STALE_MS = 90_000;
-/** How often the action writes a running turn, at the latest, even with nothing new to add. */
+/** How often the action must write a running turn, at the latest, even with nothing new to add. */
 export const RUN_HEARTBEAT_MS = 30_000;
 /** A run id is the action's own UUID or similar token; this only bounds its size. */
 export const MAX_RUN_ID_LENGTH = 100;
@@ -134,8 +135,9 @@ export const batch = internalMutation({
  * Ends the run with its final message. With `needsAnswer` (a round or finish proposal), the turn
  * keeps the message and waits for the user's answer. Without it (a closing reply), the message is
  * appended to the idea and the turn is cleared. Returns false, and writes nothing, when the run
- * no longer owns a running turn. Fails with `too-large` when the idea cannot take the message;
- * the action then interrupts the run.
+ * no longer owns a running turn. Fails with `too-large`, leaving the turn running, when the idea
+ * cannot take the message; the action then interrupts the run. A waiting message is checked too,
+ * so a run never waits for an answer that could not be stored.
  */
 export const end = internalMutation({
   args: {
@@ -148,13 +150,13 @@ export const end = internalMutation({
   handler: async (ctx, { ideaId, runId, message, needsAnswer }) => {
     const turn = await ownedRunning(ctx, ideaId, runId);
     if (!turn) return false;
-    checkMessage(message);
+    const idea = await ctx.db.get(ideaId);
+    if (!idea) return false;
     if (needsAnswer) {
+      checkMessages({ count: idea.nextSeq, bytes: idea.bytes }, [message]);
       await ctx.db.patch(turn._id, { status: "waiting", message, lastWriteAt: Date.now() });
       return true;
     }
-    const idea = await ctx.db.get(ideaId);
-    if (!idea) return false;
     await appendFinal(ctx, idea, message);
     await ctx.db.delete(turn._id);
     return true;
@@ -231,8 +233,10 @@ export const answer = mutation({
 });
 
 /**
- * Stops the caller's running run `runId`: the turn becomes interrupted, and the action stops at
- * its next write. A run that already ended, or another run, is left alone.
+ * Stops the caller's run `runId`, running or waiting: the turn becomes interrupted, so the next
+ * run may replace it. A running action stops at its next write. Stopping a waiting run abandons
+ * its question, which is also the way out when the answer cannot be stored (`too-large`).
+ * A run that already ended, or another run, is left alone.
  */
 export const stop = mutation({
   args: { id: v.string(), runId: v.string() },
@@ -241,8 +245,10 @@ export const stop = mutation({
     const userId = await owner(ctx);
     const idea = await findOwned(ctx, userId, id);
     if (!idea) return null;
-    const turn = await ownedRunning(ctx, idea._id, runId);
-    if (turn) await ctx.db.patch(turn._id, { status: "interrupted" });
+    const turn = await findTurn(ctx, idea._id);
+    if (turn && turn.runId === runId && turn.status !== "interrupted") {
+      await ctx.db.patch(turn._id, { status: "interrupted" });
+    }
     return null;
   },
 });
