@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/pragyanfyi/unfold/compare/v0.6.0...v0.7.0) (2026-11-19)
+
+
+### Features
+
+* **auth:** add the Convex Auth v2 backend with Google sign-in ([#80](https://github.com/pragyanfyi/unfold/issues/80)) ([2cbbf3c](https://github.com/pragyanfyi/unfold/commit/2cbbf3ca147a8d18250805baf0cedb4f46748134))
+* **auth:** require sign-in, with onboarding in the composer ([#83](https://github.com/pragyanfyi/unfold/issues/83)) ([6d31298](https://github.com/pragyanfyi/unfold/commit/6d31298f2c5040c792cf9e0e1cfd6f003b8cae97))
+* **auth:** sign in and out in the web app, and E2E against Convex ([#82](https://github.com/pragyanfyi/unfold/issues/82)) ([221cb43](https://github.com/pragyanfyi/unfold/commit/221cb432373b4514b9377d96525f89fd8927c7ac))
+* **chat:** run the interview in a Convex HTTP action ([#87](https://github.com/pragyanfyi/unfold/issues/87)) ([39706a3](https://github.com/pragyanfyi/unfold/commit/39706a32d84ae26279769c3d7e5899b06c3d5b74))
+* **db:** add the turn document and run ownership for the chat move ([#86](https://github.com/pragyanfyi/unfold/issues/86)) ([0fef265](https://github.com/pragyanfyi/unfold/commit/0fef265d0dd19261439d7ab240421fc9be862788))
+* **db:** store ideas in Convex and remove IndexedDB ([#84](https://github.com/pragyanfyi/unfold/issues/84)) ([7f0ce88](https://github.com/pragyanfyi/unfold/commit/7f0ce88ee294215011469ac23c2a67a3b697cee2)), closes [#74](https://github.com/pragyanfyi/unfold/issues/74)
+
 ## [0.6.0](https://github.com/pragyanfyi/unfold/compare/v0.5.0...v0.6.0) (2026-11-18)
 
 
