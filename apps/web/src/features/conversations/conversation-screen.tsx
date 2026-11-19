@@ -161,6 +161,7 @@ function Conversation({
 }) {
   const saver = useConversationSaver({
     id,
+    existed: loaded !== null,
     onFirstSave,
   });
   // The chat derives the tree and the canvas draws it. The selected node lives here, outside

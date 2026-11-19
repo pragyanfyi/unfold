@@ -65,10 +65,25 @@ async function withIdea() {
     schemaVersion: 1,
     messages: [message("m0")],
   });
-  const start = (runId = RUN) =>
-    t.mutation(internal.turns.start, { ownerId: alice.userId, id: ID, runId });
+  // Starts a run from the idea's stored history, as the action does after the browser's save.
+  const start = async (runId = RUN, expectedNextSeq?: number) =>
+    t.mutation(internal.turns.start, {
+      ownerId: alice.userId,
+      id: ID,
+      runId,
+      expectedNextSeq: expectedNextSeq ?? (await nextSeqOf(t)),
+    });
   return { t, alice, start };
 }
+
+const nextSeqOf = (t: Backend) =>
+  t.run(async (ctx) => {
+    const idea = await ctx.db
+      .query("ideas")
+      .withIndex("by_client_id", (q) => q.eq("clientId", ID))
+      .unique();
+    return idea?.nextSeq ?? 0;
+  });
 
 const turnOf = (t: Backend, ideaId: Id<"ideas">) =>
   t.run((ctx) =>
@@ -238,11 +253,27 @@ describe("turns", () => {
     expect((await turnOf(t, ideaId))?.status).toBe("waiting");
   });
 
+  it("refuses a run whose request carries other history than the idea holds", async () => {
+    const { t, start } = await withIdea();
+    // The idea holds 1 message. A tab that has 0 or 2 is out of step with it.
+    expect(await code(start(RUN, 0))).toBe("conflict");
+    expect(await code(start(RUN, 2))).toBe("conflict");
+    expect(await t.run((ctx) => ctx.db.query("turns").collect())).toHaveLength(0);
+    await start(RUN, 1);
+  });
+
   it("keeps every user to their own ideas", async () => {
     const { t, alice, start } = await withIdea();
     const bob = await user(t);
     expect(
-      await code(t.mutation(internal.turns.start, { ownerId: bob.userId, id: ID, runId: RUN })),
+      await code(
+        t.mutation(internal.turns.start, {
+          ownerId: bob.userId,
+          id: ID,
+          runId: RUN,
+          expectedNextSeq: 1,
+        }),
+      ),
     ).toBe("missing");
 
     const ideaId = await start();

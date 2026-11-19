@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
-import { convexOrigins } from "./src/features/security/csp";
+import { convexOrigins, convexSiteUrl } from "./src/features/security/csp";
 
 // Identifies this build. CI sets GITHUB_SHA; a local build is just "dev".
 // The browser compares its own value with /version.json to detect a newer deploy
@@ -29,12 +29,15 @@ function versionFile(): Plugin {
 const config = defineConfig(({ mode }) => {
   // Our Convex deployment, for the CSP (ADR 0015). Checked here, so a bad value fails the build.
   const env = { ...loadEnv(mode, process.cwd(), "VITE_CONVEX_"), ...process.env };
-  const convex = convexOrigins({ url: env.VITE_CONVEX_URL, siteUrl: env.VITE_CONVEX_SITE_URL });
+  const deployment = { url: env.VITE_CONVEX_URL, siteUrl: env.VITE_CONVEX_SITE_URL };
+  const convex = convexOrigins(deployment);
   return {
     resolve: { tsconfigPaths: true },
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
       __CONVEX_ORIGINS__: JSON.stringify(convex),
+      // Where the browser calls the interview's action: the site origin the CSP allows.
+      __CONVEX_SITE_URL__: JSON.stringify(convexSiteUrl(deployment) ?? ""),
     },
     plugins: [
       cloudflare({ viteEnvironment: { name: "ssr" } }),

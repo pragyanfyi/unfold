@@ -57,6 +57,17 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
   return [...new Set([client.origin, socket, site.origin])];
 }
 
+/**
+ * The deployment's HTTP actions origin, where the interview's action runs: `VITE_CONVEX_SITE_URL`
+ * when set, otherwise the one inferred from a `<name>.convex.cloud` client URL. The same origin
+ * the CSP allows, so the app never calls a host the policy would block. Undefined without a
+ * deployment.
+ */
+export function convexSiteUrl(env: { url?: string; siteUrl?: string }): string | undefined {
+  // `convexOrigins` lists the site origin last (see its return statement).
+  return env.url ? convexOrigins(env).at(-1) : undefined;
+}
+
 const CLOUD = ".convex.cloud";
 const SITE = ".convex.site";
 

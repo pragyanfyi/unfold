@@ -58,7 +58,7 @@ export function ChatPane({
   initialMessages?: Array<UIMessage>;
   onFinish?: (message: UIMessage) => void;
   /** Runs before every request; storage must hold the messages first (ADR 0015). */
-  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<void>;
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
   /** Called when the user stops a run. */
   onStop?: () => void;
   /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */

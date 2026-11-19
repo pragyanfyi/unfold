@@ -353,6 +353,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
               answered: m.parts.some((p) => p.type === "tool-call" && p.output !== undefined),
             })),
           );
+          return messages.length;
         }}
       />,
     );
@@ -377,7 +378,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
 
   it("does not store an idea that was refused for lack of a key", async () => {
     stubNetwork([]);
-    const beforeRun = vi.fn(async () => {});
+    const beforeRun = vi.fn(async () => 0);
     render(<ChatPane threadId="t1" byok={await byokWithKey(false)} beforeRun={beforeRun} />);
     await sendIdea("My idea");
     expect(await screen.findByLabelText("API key")).toBeTruthy();
@@ -408,7 +409,7 @@ describe("ChatPane: what it offers to storage (ADR 0013)", () => {
     const { fetchMock } = stubNetwork([
       { text: "That settles it.", toolCalls: [{ name: "propose_finish", input: FINISH }] },
     ]);
-    const beforeRun = vi.fn(async (_messages: ReadonlyArray<UIMessage>) => {});
+    const beforeRun = vi.fn(async (messages: ReadonlyArray<UIMessage>) => messages.length);
     render(
       <ChatPane
         threadId="t1"

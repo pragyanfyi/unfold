@@ -5,10 +5,12 @@ import { buildOutline } from "@unfold/interview/outline";
 // The connection to the interview, which runs in a Convex HTTP action (ADR 0015). Each request
 // carries, next to `provider` in `forwardedProps`:
 // - the tree outline (ADR 0012), and
-// - the idea's id, so the action records the run in that idea's turn document.
+// - the idea's id, so the action records the run in that idea's turn document, and
+// - `expectedNextSeq`, the stored count `beforeRun` reached, so the action refuses a run from
+//   history the server does not hold (another tab moved on).
 // The signed-in user's access token goes in `Authorization`; the provider key goes in
-// `x-byok-anthropic`, added by the keyring (ADR 0003). The action's address is a build-time
-// setting that the CSP allows (`connect-src`, ADR 0015).
+// `x-byok-anthropic`, added by the keyring (ADR 0003). The action's address is the build's
+// `__CONVEX_SITE_URL__`, the same origin the CSP allows (`connect-src`, ADR 0015).
 //
 // The outline is built here, from the very messages being sent, and not passed through the
 // `forwardedProps` option: the hook copies that option to the client in an effect, so a
@@ -20,14 +22,15 @@ export type InterviewConnectionOptions = {
   getToken: () => string | null;
   /**
    * Runs before every request with the messages being sent, and the request is not sent if it
-   * throws: storage must hold them first (`ConversationSaver.beforeRun`).
+   * throws: storage must hold them first (`ConversationSaver.beforeRun`). Resolves with the
+   * number of stored messages.
    */
-  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<void>;
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
 };
 
 export function chatUrl(siteUrl: string | undefined): string {
   if (!siteUrl) {
-    throw new Error("VITE_CONVEX_SITE_URL is not set. See docs/operations/development.md.");
+    throw new Error("No Convex deployment is configured. See docs/operations/development.md.");
   }
   return `${siteUrl.replace(/\/$/, "")}/chat`;
 }
@@ -43,14 +46,10 @@ export function interviewConnection(options: InterviewConnectionOptions) {
     // The chat client always sends UI messages (the other form is for calling an adapter
     // directly).
     const ui = messages as ReadonlyArray<UIMessage>;
-    await options.beforeRun?.(ui);
+    const expectedNextSeq = await options.beforeRun?.(ui);
     const outline = buildOutline(deriveTree(ui));
-    yield* base.connect(
-      messages,
-      { ...data, outline, ideaId: options.ideaId },
-      abortSignal,
-      runContext,
-    );
+    const props = { ...data, outline, ideaId: options.ideaId, expectedNextSeq };
+    yield* base.connect(messages, props, abortSignal, runContext);
   };
   return { ...base, connect };
 }

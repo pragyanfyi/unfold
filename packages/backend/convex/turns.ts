@@ -89,17 +89,25 @@ export const get = query({
 /**
  * Starts a run on the idea `id` for the user `ownerId`, whom the action has signed in. Allowed
  * only when the idea has no turn or an interrupted one, which the new run replaces. Fails with
- * `missing` when the user has no such idea, and `busy` while another run owns the turn.
+ * `missing` when the user has no such idea, `busy` while another run owns the turn, and
+ * `conflict` unless the idea holds exactly `expectedNextSeq` messages: the run's request carries
+ * that history, and its reply is appended after it.
  */
 export const start = internalMutation({
-  args: { ownerId: v.id("users"), id: v.string(), runId: v.string() },
+  args: {
+    ownerId: v.id("users"),
+    id: v.string(),
+    runId: v.string(),
+    expectedNextSeq: v.number(),
+  },
   returns: v.id("ideas"),
-  handler: async (ctx, { ownerId, id, runId }) => {
+  handler: async (ctx, { ownerId, id, runId, expectedNextSeq }) => {
     checkRunId(runId);
     const idea = await findOwned(ctx, ownerId, id);
     if (!idea) fail("missing");
     const turn = await findTurn(ctx, idea._id);
     if (turn && turn.status !== "interrupted") fail("busy");
+    if (idea.nextSeq !== expectedNextSeq) fail("conflict");
     if (turn) await ctx.db.delete(turn._id);
     const now = Date.now();
     await ctx.db.insert("turns", { ideaId: idea._id, runId, status: "running", lastWriteAt: now });

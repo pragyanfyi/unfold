@@ -46,8 +46,16 @@ export type TurnRun = {
   interrupt(): Promise<void>;
 };
 
-/** Claims the idea's turn for a new run. `missing`: no such idea of the caller's. */
-export type StartTurn = (ideaId: string, runId: string) => Promise<TurnRun | "missing" | "busy">;
+/**
+ * Claims the idea's turn for a new run. `missing`: no such idea of the caller's. `conflict`: the
+ * idea's stored count is not `expectedNextSeq`, so the request carries history the server does
+ * not hold.
+ */
+export type StartTurn = (
+  ideaId: string,
+  runId: string,
+  expectedNextSeq: number,
+) => Promise<TurnRun | "missing" | "busy" | "conflict">;
 
 // How often a streaming reply is written to the turn document. The main cost lever (ADR 0015,
 // spike): each write is a mutation and re-runs the live query of every open tab.
@@ -189,9 +197,17 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
     if (typeof ideaId !== "string" || ideaId.length === 0 || ideaId.length > 100) {
       return jsonError(400, "invalid_body", "The request has no idea.");
     }
-    const started = await deps.startTurn(ideaId, crypto.randomUUID());
+    // The stored count the browser reached before sending: the run's reply goes after it.
+    const expectedNextSeq = params.forwardedProps.expectedNextSeq;
+    if (typeof expectedNextSeq !== "number" || !Number.isSafeInteger(expectedNextSeq)) {
+      return jsonError(400, "invalid_body", "The request has no stored count.");
+    }
+    const started = await deps.startTurn(ideaId, crypto.randomUUID(), expectedNextSeq);
     if (started === "missing") return jsonError(404, "idea_missing", "That idea was not found.");
     if (started === "busy") return jsonError(409, "run_busy", "A reply is already being written.");
+    if (started === "conflict") {
+      return jsonError(409, "history_conflict", "This conversation changed somewhere else.");
+    }
     turnRun = started;
   }
 

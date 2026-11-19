@@ -44,13 +44,14 @@ function fakeStore(stored: number | null, turn: TurnState | null = null) {
   return { store: store as unknown as ConversationStore, fail, ...store };
 }
 
-function setup(stored: number | null, turn: TurnState | null = null) {
+function setup(stored: number | null, turn: TurnState | null = null, existed = false) {
   const fake = fakeStore(stored, turn);
   const statuses: Array<SaveStatus> = [];
   const onSaved = vi.fn();
   const saver = new ConversationSaver({
     store: fake.store,
     id: "c1",
+    existed,
     onStatus: (s) => statuses.push(s),
     onSaved,
   });
@@ -127,6 +128,47 @@ describe("ConversationSaver.beforeRun", () => {
     expect(statuses.at(-1)).toEqual({ kind: "unsaved", reason: "unavailable" });
   });
 
+  it("resolves with the stored count, which the request carries", async () => {
+    expect(await setup(null).saver.beforeRun([msg("a")])).toBe(1);
+    expect(await setup(1).saver.beforeRun([msg("a"), msg("b")])).toBe(2);
+    expect(
+      await setup(1, waiting("q")).saver.beforeRun([msg("a"), msg("q", "q", "assistant")]),
+    ).toBe(2);
+  });
+
+  it("skips a cut-off reply at the end, so Try again can continue past it", async () => {
+    const { saver, append } = setup(2);
+    const count = await saver.beforeRun([
+      msg("a"),
+      msg("q", "q", "assistant"),
+      msg("partial", "Half a repl", "assistant"),
+    ]);
+    expect(count).toBe(2);
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it("refuses history older than storage: another tab moved on", async () => {
+    const { saver, append, statuses } = setup(3);
+    await expect(saver.beforeRun([msg("a"), msg("b")])).rejects.toBeInstanceOf(StorageError);
+    expect(append).not.toHaveBeenCalled();
+    expect(statuses.at(-1)).toEqual({ kind: "conflict", reason: "changed" });
+  });
+
+  it("never recreates an idea that was stored and is gone", async () => {
+    // Opened from storage, then deleted in another tab.
+    const opened = setup(null, null, true);
+    await expect(opened.saver.beforeRun([msg("a")])).rejects.toBeInstanceOf(StorageError);
+    expect(opened.create).not.toHaveBeenCalled();
+    expect(opened.statuses.at(-1)).toEqual({ kind: "conflict", reason: "deleted" });
+
+    // Created by this tab, then deleted in another.
+    const made = setup(null);
+    await made.saver.beforeRun([msg("a")]);
+    made.head.mockResolvedValue(null);
+    await expect(made.saver.beforeRun([msg("a"), msg("b")])).rejects.toBeInstanceOf(StorageError);
+    expect(made.create).toHaveBeenCalledOnce();
+  });
+
   it("splits a long queue into writes the backend accepts", async () => {
     const { saver, append } = setup(1);
     const all = Array.from({ length: MAX_MESSAGES_PER_SAVE + 3 }, (_, i) => msg(`m${i}`));
@@ -182,6 +224,16 @@ describe("ConversationSaver.stopRun", () => {
     finishStop();
     await Promise.all([stopping, sending]);
     expect(head).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a Stop the server did not get, and sends it before the next write", async () => {
+    const { saver, stop, append } = setup(1, { runId: "r", status: "running", message: null });
+    stop.mockRejectedValueOnce(new StorageError("unavailable"));
+    await saver.stopRun();
+    expect(stop).toHaveBeenCalledTimes(1);
+    await saver.beforeRun([msg("a"), msg("b")]);
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(append).toHaveBeenCalledWith("c1", 1, [msg("b")]);
   });
 
   it("stops a running or waiting run, and leaves an interrupted one", async () => {

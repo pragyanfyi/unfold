@@ -46,7 +46,7 @@ export function useInterviewChat(
     byok?: ReturnType<typeof getByok>;
     onFinish?: (message: UIMessage) => void;
     /** Runs before every request; the request is not sent if it throws (ADR 0015). */
-    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<void>;
+    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<number>;
     /** Called when the user stops a run, so storage can end it on the server too. */
     onStop?: () => void;
   } = {},
@@ -117,9 +117,9 @@ export function useInterviewChat(
     () =>
       interviewConnection({
         ideaId: threadId,
-        url: chatUrl(import.meta.env.VITE_CONVEX_SITE_URL),
+        url: chatUrl(__CONVEX_SITE_URL__),
         getToken: () => getToken.current(),
-        beforeRun: (messages) => beforeRun.current?.(messages) ?? Promise.resolve(),
+        beforeRun: (messages) => beforeRun.current?.(messages) ?? Promise.resolve(messages.length),
       }),
     [threadId],
   );

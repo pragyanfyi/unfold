@@ -7,7 +7,7 @@ import { handleChatRequest, type StartTurn, type TurnRun } from "../convex/chat/
 
 const SENTINEL_KEY = "sk-ant-FAKE-TURN-SENTINEL-0123456789";
 
-function post(forwardedProps: Record<string, unknown> = { ideaId: "idea-1" }) {
+function post(forwardedProps: Record<string, unknown> = { ideaId: "idea-1", expectedNextSeq: 1 }) {
   return new Request("http://localhost/chat", {
     method: "POST",
     headers: { "content-type": "application/json", "x-byok-anthropic": SENTINEL_KEY },
@@ -87,10 +87,15 @@ describe("chat turns", () => {
     const createAdapter = vi.fn(() => fakeText());
     await handleChatRequest(post({}), { createAdapter, startTurn });
     expect(startTurn).not.toHaveBeenCalled(); // no idea in the request
+    await handleChatRequest(post({ ideaId: "idea-1" }), { createAdapter, startTurn });
+    expect(startTurn).not.toHaveBeenCalled(); // no stored count
+    await handleChatRequest(post(), { createAdapter: () => fakeText(), startTurn });
+    expect(startTurn.mock.calls[0][0]).toBe("idea-1");
+    expect(startTurn.mock.calls[0][2]).toBe(1);
     expect(createAdapter).not.toHaveBeenCalled();
   });
 
-  it("answers 404 for an idea that is not the caller's, and 409 while another run owns it", async () => {
+  it("answers 404 for an idea that is not the caller's, and 409 while busy or out of step", async () => {
     const createAdapter = vi.fn(() => fakeText());
     const missing = await handleChatRequest(post(), {
       createAdapter,
@@ -99,6 +104,12 @@ describe("chat turns", () => {
     expect(missing.status).toBe(404);
     const busy = await handleChatRequest(post(), { createAdapter, startTurn: async () => "busy" });
     expect(busy.status).toBe(409);
+    const stale = await handleChatRequest(post(), {
+      createAdapter,
+      startTurn: async () => "conflict",
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ error: { type: "history_conflict" } });
     expect(createAdapter).not.toHaveBeenCalled();
   });
 

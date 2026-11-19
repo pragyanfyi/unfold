@@ -7,9 +7,12 @@ import { getConversationStore } from "#/features/storage/store-instance";
 // browser knows, before each run; Convex writes everything the model says (see `ConversationSaver`).
 export function useConversationSaver({
   id,
+  existed,
   onFirstSave,
 }: {
   id: string;
+  /** True when the conversation was already stored when the screen opened it. */
+  existed: boolean;
   /** Called once, after a new conversation was first written. */
   onFirstSave?: () => void;
 }) {
@@ -23,6 +26,7 @@ export function useConversationSaver({
     saver.current ??= new ConversationSaver({
       store: getConversationStore(),
       id,
+      existed,
       onStatus: setStatus,
       onSaved: () => {
         if (!wasSaved.current) {
@@ -32,7 +36,7 @@ export function useConversationSaver({
       },
     });
     return saver.current;
-  }, [id]);
+  }, [id, existed]);
 
   const beforeRun = useCallback(
     (messages: ReadonlyArray<UIMessage>) => get().beforeRun(messages),
