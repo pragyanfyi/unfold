@@ -35,7 +35,22 @@ Adopt the TanStack AI BYOK mechanism as documented.
 - The key entry UI must handle a failed save explicitly (the no-PRF case above): catch the error, explain it, and never silently store the key elsewhere. Whether to offer an opt-in memory-only mode for that case is an open question to settle by amending this ADR before building it; a custom storage implementation could provide it, but the docs do not present that as the recommended route.
 - To be verified during implementation: actual data flow, CSP effectiveness, and the behaviour of each supported provider.
 
+## Update for the chat move (#75, ADR 0015)
+
+Written 2026-11-19, when the interview moved from the Worker route to a Convex HTTP action. The decision above stands; what changes is the hop.
+
+- **The documented hop is Unfold's Convex HTTP action** (`POST /chat` on the deployment's `.convex.site` URL, `packages/backend/convex/http.ts`), not a Worker route. The browser sends the key in `x-byok-anthropic` and the user's access token in `Authorization`. The Worker serves pages only and never sees a key. The CSP's `connect-src` names exactly our own deployment's origins (ADR 0015), so a script cannot send the key to another one.
+- **The key stays in that header.** It is never an argument of `ctx.runMutation`, `ctx.runAction` or `ctx.scheduler` (a scheduled argument is stored until the job runs), never a field of a document, and never a log line. The functions that write a run (`turns.start`, `batch`, `end`, `interrupt`) take only ids and the message. A test gives the handler a fake turn and checks that nothing it was called with contains the key (`tests/chat-turns.test.ts`).
+- **Rule 1 now reads:** keys are never written to a Convex document, a function argument, a scheduled job, a log, analytics or an error report.
+- **Every earlier rule carries over to the action:** the safe logger (`convex/chat/safeLog.ts`), the library logger override, fixed error strings, scrubbed `RUN_ERROR` chunks, the sentinel key tests (`tests/chat-handler.test.ts`) and the two Biome plugins, which now cover `packages/backend/convex/chat/` and `convex/http.ts` as well as the browser's chat code.
+- **Errors are caught, never rethrown.** On a development deployment Convex returns an uncaught error's message and stack in the response (seen locally, ADR 0015). The action wraps everything and answers a fixed string; a malformed token, which makes `getAuthUserId` throw, answers 401.
+- **The test-provider override moved with the code.** `UNFOLD_TEST_PROVIDER_URL` is read from the Convex deployment's environment, never from a request, and only loopback `http://` hosts are honoured. Only the local E2E backend sets it.
+- **Users must now trust our Convex functions not to log the key**, where before it was our Worker. Convex's log stream schema has no field for HTTP headers or bodies (ADR 0015, read 2026-11-17); that is documentation, not a check of ours. Self-hosting stays possible.
+- **Not verified:** that a production Convex deployment redacts an uncaught error in an HTTP action's response (the action does not rely on it), and that no Convex log or dashboard view shows request headers. Both need a cloud deployment.
+
 ## Implementation notes (#26)
+
+These describe the Worker route as first built. The code now lives in `packages/backend/convex/chat/` (see the update above); the checks below were carried over to it.
 
 Checked 2026-11-09 against `@tanstack/ai` 1.3.0, `@tanstack/ai-client` 1.1.0, `@tanstack/ai-react` 1.0.2 and `@tanstack/ai-anthropic` 1.1.1 (installed source, tests, and one run of the built Worker). The first provider is Anthropic only.
 
