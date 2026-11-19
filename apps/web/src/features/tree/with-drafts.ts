@@ -1,5 +1,5 @@
-import { type Answer, isAnswered, optionLetter } from "#/features/chat/round-answers";
-import type { Tree } from "./derive-tree";
+import type { Tree } from "@unfold/interview/derive-tree";
+import { type Answer, isAnswered, optionLetter } from "@unfold/interview/round-answers";
 
 // The tree as the user sees it while they answer a round (#31): each question they have
 // answered in the questionnaire shows that answer before the round is submitted. The drafts

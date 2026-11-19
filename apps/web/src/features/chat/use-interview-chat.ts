@@ -1,10 +1,6 @@
 import { type UIMessage, useChat } from "@tanstack/ai-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getByok } from "#/features/byok/key-store";
-import { savablePrefix } from "#/features/storage/savable";
-import { deriveTree, type Tree } from "#/features/tree/derive-tree";
-import { interviewConnection } from "./connection";
-import { DEFAULT_PROVIDER } from "./providers";
+import { deriveTree, type Tree } from "@unfold/interview/derive-tree";
+import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
 import {
   type Answer,
   buildRoundAnswers,
@@ -12,12 +8,14 @@ import {
   type FinishInput,
   type RoundAnswers,
   type RoundInput,
-} from "./round-answers";
-import { askRound, proposeFinish } from "./tools";
+} from "@unfold/interview/round-answers";
+import { askRound, proposeFinish } from "@unfold/interview/tools";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "#/features/auth/session";
+import { getByok } from "#/features/byok/key-store";
+import type { StoredHistory } from "#/features/storage/types";
+import { chatUrl, interviewConnection } from "./connection";
 import { turnProblem } from "./turn-problem";
-
-// One connection for the app: it holds no state, and it adds the tree outline to each request.
-const connection = interviewConnection();
 
 // What the model is waiting for the user to do. Only one thing is pending at a time.
 export type PendingTurn =
@@ -33,8 +31,9 @@ type Waiter = {
 // The chat client for the interview. `byok` makes the client read the key from the keyring
 // and stamp it in the `x-byok-anthropic` header on each send (the key is never in the body).
 // With no key, the send fails with ByokBlockedError and the key dialog is requested
-// (`byok.getSnapshot().prompt`). Storage (#28) feeds `initialMessages`; we save through our
-// own functions, so `persistence` stays off (it is off unless set).
+// (`byok.getSnapshot().prompt`). Storage (#28) feeds `initialMessages`. The library's own
+// `persistence` stays off: `beforeRun` stores what the browser knows before each request, and the
+// interview's action stores what the model says (ADR 0015).
 //
 // How a round is answered (ADR 0012, spike in answers-as-tool-result.test.ts): the server's
 // `ask_round` has no handler, so the run ends waiting for the client. The client declares the
@@ -47,8 +46,10 @@ export function useInterviewChat(
   options: {
     byok?: ReturnType<typeof getByok>;
     onFinish?: (message: UIMessage) => void;
-    /** Called with the messages that may be stored whenever that list grows (ADR 0013). */
-    onSavable?: (messages: Array<UIMessage>) => void;
+    /** Runs before every request; the request is not sent if it throws (ADR 0015). */
+    beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<StoredHistory>;
+    /** Called when the user stops a run, so storage can end it on the server too. */
+    onStop?: () => void;
   } = {},
 ) {
   const [pending, setPending] = useState<PendingTurn | null>(null);
@@ -107,6 +108,28 @@ export function useInterviewChat(
     [onFinish],
   );
 
+  // The request's address and token are read when a request is made, not when this renders.
+  const session = useSession();
+  const getToken = useRef(session.getAccessToken);
+  getToken.current = session.getAccessToken;
+  const beforeRun = useRef(options.beforeRun);
+  beforeRun.current = options.beforeRun;
+  const connection = useMemo(
+    () =>
+      interviewConnection({
+        ideaId: threadId,
+        url: chatUrl(__CONVEX_SITE_URL__),
+        getToken: () => getToken.current(),
+        beforeRun: (messages) =>
+          beforeRun.current?.(messages) ??
+          Promise.resolve({
+            nextSeq: messages.length,
+            lastMessageId: messages.at(-1)?.id ?? null,
+          }),
+      }),
+    [threadId],
+  );
+
   const chat = useChat({
     threadId,
     initialMessages,
@@ -117,24 +140,10 @@ export function useInterviewChat(
     onFinish: handleFinish,
   });
 
-  // Tell storage what may be saved, but only when the list grows: streaming changes the
-  // messages on every token and the savable prefix on almost none of them.
-  const onSavable = options.onSavable;
-  const reported = useRef(initialMessages?.length ?? 0);
-  const status = chat.status;
-  const blocked = Boolean(byok.getSnapshot().prompt);
-  useEffect(() => {
-    if (!onSavable) return;
-    const prefix = savablePrefix(chat.messages, { status, blocked, finishedId });
-    if (prefix.length > reported.current) {
-      reported.current = prefix.length;
-      onSavable(prefix);
-    }
-  }, [chat.messages, status, blocked, finishedId, onSavable]);
-
   // A conversation restored from storage that ends in an answered round or proposal had its
   // reply cut off by a reload (the answer is stored, the reply is not). It can be continued by
   // re-submitting that answer. Once any run has started, the library's own retry applies.
+  const status = chat.status;
   const restoredTail = useRef(lastAnsweredCall(initialMessages ?? []));
   if (status !== "ready" && restoredTail.current) restoredTail.current = null;
 
@@ -168,10 +177,12 @@ export function useInterviewChat(
     [resolve],
   );
 
+  const onStop = options.onStop;
   const stop = useCallback(() => {
     chat.stop();
     clearWaiter(new Error("Stopped"));
-  }, [chat, clearWaiter]);
+    onStop?.();
+  }, [chat, clearWaiter, onStop]);
 
   // True once any round or finish proposal has been answered.
   const hasAnswered = chat.messages.some((message) =>

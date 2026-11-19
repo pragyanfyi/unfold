@@ -6,7 +6,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   // Mirrors the build-time constant that vite.config.ts injects.
-  define: { __APP_VERSION__: JSON.stringify("test-current"), __CONVEX_ORIGINS__: "[]" },
+  define: {
+    __APP_VERSION__: JSON.stringify("test-current"),
+    __CONVEX_ORIGINS__: "[]",
+    __CONVEX_SITE_URL__: JSON.stringify("http://convex.test"),
+  },
   test: {
     // Pure-logic tests run in node. A test that needs a DOM opts in with
     // `// @vitest-environment jsdom` at the top of the file.

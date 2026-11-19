@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { RoundQuestion } from "@unfold/interview/round-answers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { RoundQuestion } from "./round-answers";
 import { RoundForm } from "./round-form";
 
 const questions: RoundQuestion[] = [

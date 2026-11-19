@@ -24,6 +24,10 @@ const ENV = {
   AUTH_GOOGLE_CLIENT_ID: "placeholder-google-client-id",
   AUTH_GOOGLE_CLIENT_SECRET: "placeholder-google-client-secret",
   E2E_PASSWORD_SIGN_UP: "1",
+  // Where the interview's action sends the model call: the aimock server Playwright starts
+  // (MOCK_PORT in apps/web/playwright.config.ts). The action honours only loopback hosts here
+  // (convex/chat/testProviderUrl.ts), and the value never comes from a request.
+  UNFOLD_TEST_PROVIDER_URL: "http://127.0.0.1:4010",
 };
 
 const pkg = join(dirname(fileURLToPath(import.meta.url)), "..");

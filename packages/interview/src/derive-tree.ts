@@ -1,7 +1,7 @@
-import type { UIMessage } from "@tanstack/ai-react";
-import type { Answer } from "#/features/chat/round-answers";
-import { optionLetter } from "#/features/chat/round-answers";
-import { askRound, proposeFinish } from "#/features/chat/tools";
+import type { UIMessage } from "@tanstack/ai";
+import type { Answer } from "./round-answers";
+import { optionLetter } from "./round-answers";
+import { askRound, proposeFinish } from "./tools";
 
 // The decision tree, computed from the chat messages (ADR 0012). The messages are the only
 // stored record, so this runs on every read and must give the same ids every time: `idea` for

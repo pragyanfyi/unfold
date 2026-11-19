@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCsp, convexOrigins, makeNonce } from "./csp";
+import { buildCsp, convexOrigins, convexSiteUrl, makeNonce } from "./csp";
 
 function directive(csp: string, name: string) {
   return csp.split("; ").find((part) => part.startsWith(`${name} `)) ?? "";
@@ -41,6 +41,33 @@ describe("buildCsp with our Convex deployment", () => {
 
   it("never allows a wildcard host", () => {
     expect(buildCsp("n", { connect })).not.toContain("*");
+  });
+});
+
+describe("convexSiteUrl", () => {
+  it("infers the HTTP actions origin from a convex.cloud URL alone", () => {
+    expect(convexSiteUrl({ url: "https://happy-otter-123.convex.cloud" })).toBe(
+      "https://happy-otter-123.convex.site",
+    );
+  });
+
+  it("keeps an explicit site URL authoritative", () => {
+    expect(convexSiteUrl({ url: "http://127.0.0.1:3210", siteUrl: "http://127.0.0.1:3211/" })).toBe(
+      "http://127.0.0.1:3211",
+    );
+  });
+
+  it("returns the HTTP origin when the site URL shares the client URL's origin", () => {
+    // The CSP lists the shared origin once; the site URL must still be the https one, never wss.
+    const env = { url: "https://convex.example.com", siteUrl: "https://convex.example.com" };
+    expect(convexSiteUrl(env)).toBe("https://convex.example.com");
+    expect(convexOrigins(env)).toContain(convexSiteUrl(env));
+  });
+
+  it("is undefined without a deployment, and always one of the CSP's origins", () => {
+    expect(convexSiteUrl({})).toBeUndefined();
+    const env = { url: "https://happy-otter-123.convex.cloud" };
+    expect(convexOrigins(env)).toContain(convexSiteUrl(env));
   });
 });
 

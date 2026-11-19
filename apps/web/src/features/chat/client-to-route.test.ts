@@ -1,10 +1,10 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-react";
 import { defineByok, memoryStorage } from "@tanstack/ai-react/byok";
+import { handleChatRequest } from "@unfold/backend/convex/chat/handler";
+import { askRound } from "@unfold/interview/tools";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleChatRequest } from "./chat-handler";
 import { interviewConnection } from "./connection";
-import { askRound } from "./tools";
 
 const SENTINEL_KEY = "sk-ant-FAKE-CLIENT-KEY-0123456789";
 
@@ -92,7 +92,11 @@ describe("chat client to chat route", () => {
     });
     const client = new ChatClient({
       threadId: "t1",
-      connection: interviewConnection(),
+      connection: interviewConnection({
+        ideaId: "idea-1",
+        url: "http://convex.test/chat",
+        getToken: () => "FAKE-ACCESS-TOKEN",
+      }),
       byok,
       forwardedProps: { provider: "anthropic" },
       tools: [askRound.client(() => pending)],

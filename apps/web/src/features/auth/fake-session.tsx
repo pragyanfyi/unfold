@@ -7,6 +7,7 @@ export function fakeSession(overrides: Partial<Session> = {}): Session {
     status: "signed-in",
     signInWithGoogle: async () => {},
     signOut: async () => {},
+    getAccessToken: () => "fake-access-token",
     ...overrides,
   };
 }

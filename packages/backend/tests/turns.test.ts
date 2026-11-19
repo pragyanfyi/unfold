@@ -6,7 +6,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { MAX_IDEA_MESSAGES } from "../convex/ideas";
+import { lastMessageId, MAX_IDEA_MESSAGES } from "../convex/ideas";
 import schema from "../convex/schema";
 import { MAX_RUN_ID_LENGTH, RUN_STALE_MS } from "../convex/turns";
 
@@ -65,10 +65,33 @@ async function withIdea() {
     schemaVersion: 1,
     messages: [message("m0")],
   });
-  const start = (runId = RUN) =>
-    t.mutation(internal.turns.start, { ownerId: alice.userId, id: ID, runId });
+  // Starts a run from the idea's stored history, as the action does after the browser's save.
+  const start = async (
+    runId = RUN,
+    history?: { nextSeq: number; lastMessageId: string | null },
+  ) => {
+    const stored = history ?? (await historyOf(t));
+    return t.mutation(internal.turns.start, {
+      ownerId: alice.userId,
+      id: ID,
+      runId,
+      expectedNextSeq: stored.nextSeq,
+      expectedLastMessageId: stored.lastMessageId,
+    });
+  };
   return { t, alice, start };
 }
+
+// The idea's stored history, as the browser reports it with a request.
+const historyOf = (t: Backend) =>
+  t.run(async (ctx) => {
+    const idea = await ctx.db
+      .query("ideas")
+      .withIndex("by_client_id", (q) => q.eq("clientId", ID))
+      .unique();
+    if (!idea) return { nextSeq: 0, lastMessageId: null };
+    return { nextSeq: idea.nextSeq, lastMessageId: await lastMessageId(ctx, idea) };
+  });
 
 const turnOf = (t: Backend, ideaId: Id<"ideas">) =>
   t.run((ctx) =>
@@ -238,11 +261,30 @@ describe("turns", () => {
     expect((await turnOf(t, ideaId))?.status).toBe("waiting");
   });
 
+  it("refuses a run whose request carries other history than the idea holds", async () => {
+    const { t, start } = await withIdea();
+    // The idea holds 1 message, "m0". A tab that has 0 or 2 is out of step with it, and so is a
+    // tab whose 1 message is another: two tabs can diverge at the same length.
+    expect(await code(start(RUN, { nextSeq: 0, lastMessageId: null }))).toBe("conflict");
+    expect(await code(start(RUN, { nextSeq: 2, lastMessageId: "m0" }))).toBe("conflict");
+    expect(await code(start(RUN, { nextSeq: 1, lastMessageId: "other" }))).toBe("conflict");
+    expect(await t.run((ctx) => ctx.db.query("turns").collect())).toHaveLength(0);
+    await start(RUN, { nextSeq: 1, lastMessageId: "m0" });
+  });
+
   it("keeps every user to their own ideas", async () => {
     const { t, alice, start } = await withIdea();
     const bob = await user(t);
     expect(
-      await code(t.mutation(internal.turns.start, { ownerId: bob.userId, id: ID, runId: RUN })),
+      await code(
+        t.mutation(internal.turns.start, {
+          ownerId: bob.userId,
+          id: ID,
+          runId: RUN,
+          expectedNextSeq: 1,
+          expectedLastMessageId: "m0",
+        }),
+      ),
     ).toBe("missing");
 
     const ideaId = await start();
@@ -322,6 +364,19 @@ describe("turns", () => {
     expect(await t.mutation(internal.turns.batch, { ideaId, runId: RUN, message: reply() })).toBe(
       false,
     );
+  });
+
+  it("with the stored count it was checked against, stops nothing once that count moved", async () => {
+    const { alice, start } = await withIdea();
+    await start();
+    // Another tab stored a message after this one read nextSeq 1.
+    await expect(
+      code(alice.as.mutation(api.turns.stop, { id: ID, runId: RUN, expectedNextSeq: 0 })),
+    ).resolves.toBe("conflict");
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("running");
+
+    await alice.as.mutation(api.turns.stop, { id: ID, runId: RUN, expectedNextSeq: 1 });
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("interrupted");
   });
 
   it("holds the idea's messages while a run is running or waiting", async () => {

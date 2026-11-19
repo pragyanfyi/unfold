@@ -1,4 +1,5 @@
 import { useByok } from "@tanstack/ai-react";
+import { DEFAULT_PROVIDER, PROVIDERS } from "@unfold/interview/providers";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -9,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "#/components/ui/dialog";
-import { DEFAULT_PROVIDER, PROVIDERS } from "#/features/chat/providers";
 import { ANTHROPIC_KEYS_URL, KeyForm } from "./key-form";
 import { getByok } from "./key-store";
 

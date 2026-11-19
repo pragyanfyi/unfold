@@ -1,6 +1,6 @@
 import type { UIMessage } from "@tanstack/ai-react";
+import { deriveTree } from "@unfold/interview/derive-tree";
 import { describe, expect, it } from "vitest";
-import { deriveTree } from "./derive-tree";
 import { withDrafts } from "./with-drafts";
 
 function question(label: string) {

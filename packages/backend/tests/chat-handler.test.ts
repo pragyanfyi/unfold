@@ -1,6 +1,6 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleChatRequest, MAX_BODY_BYTES, MAX_MESSAGES } from "./chat-handler";
+import { handleChatRequest, MAX_BODY_BYTES, MAX_MESSAGES } from "../convex/chat/handler";
 
 // Obviously fake. It is long and unusual enough to be found anywhere it leaks.
 const SENTINEL_KEY = "sk-ant-FAKE-SENTINEL-do-not-leak-0123456789";
@@ -338,7 +338,7 @@ describe("chat route: key-leak check (ADR 0003, item 6)", () => {
     vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       out.push(String(args[0]));
     });
-    const { libraryLogger, logSafe } = await import("./safe-log");
+    const { libraryLogger, logSafe } = await import("../convex/chat/safeLog");
     // The key straddles the 300th character: cutting first would leave a partial key.
     libraryLogger(logSafe, [SENTINEL_KEY]).error(`${"a".repeat(290)}${SENTINEL_KEY}`);
     const line = out.join("\n");

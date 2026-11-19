@@ -1,3 +1,4 @@
+import type { NodeState } from "@unfold/interview/derive-tree";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import {
   CircleCheckIcon,
@@ -7,7 +8,6 @@ import {
   LightbulbIcon,
 } from "lucide-react";
 import { memo } from "react";
-import type { NodeState } from "#/features/tree/derive-tree";
 import { cn } from "#/lib/utils";
 import { stateLabel, type TreeFlowNode } from "./flow-elements";
 

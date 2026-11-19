@@ -116,6 +116,24 @@ describe("ideas", () => {
     expect(loaded?.record).toEqual(appended);
   });
 
+  it("gets the record and the last message's id, which identify the stored history", async () => {
+    const t = backend();
+    const alice = await user(t);
+    expect(await alice.query(api.ideas.get, { id: ID })).toBeNull();
+    const created = await alice.mutation(api.ideas.create, idea());
+    expect(await alice.query(api.ideas.get, { id: ID })).toEqual({
+      record: created,
+      lastMessageId: "m0",
+    });
+    await alice.mutation(api.ideas.append, {
+      id: ID,
+      expectedNextSeq: 1,
+      schemaVersion: 1,
+      messages: [message("m1", "assistant")],
+    });
+    expect((await alice.query(api.ideas.get, { id: ID }))?.lastMessageId).toBe("m1");
+  });
+
   it("returns only the app's fields, never the owner or Convex ids", async () => {
     const t = backend();
     const alice = await user(t);

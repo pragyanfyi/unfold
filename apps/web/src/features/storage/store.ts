@@ -20,7 +20,36 @@ export class StorageError extends Error {
 
 // The storage seam for one-off reads and writes. Chat code and tests depend on this, not on
 // Convex. The list of ideas is a live query instead (`queries.ts`).
+// The idea's message that is not final yet: a reply streaming in Convex, or a round or finish
+// proposal waiting for the user's answer (ADR 0015).
+export type TurnState = {
+  runId: string;
+  status: "running" | "waiting" | "interrupted";
+  /** The message so far, as JSON text. */
+  message: string | null;
+};
+
 export interface ConversationStore {
+  /**
+   * The record and its last stored message's id, without the messages. `null` when the signed-in
+   * user has no such conversation.
+   */
+  head(id: string): Promise<{ record: ConversationRecord; lastMessageId: string | null } | null>;
+  /** The idea's turn, if a run is streaming or waiting for an answer. */
+  turn(id: string): Promise<TurnState | null>;
+  /**
+   * Stores the user's answer to the waiting run `runId`: `message` is that run's message with the
+   * answer in it. Fails with `conflict` unless the stored `nextSeq` equals `expectedNextSeq`.
+   */
+  answer(
+    id: string,
+    input: { runId: string; expectedNextSeq: number; message: UIMessage },
+  ): Promise<ConversationRecord>;
+  /**
+   * Stops the run `runId`, or abandons its waiting question. With `expectedNextSeq`, fails with
+   * `conflict` unless the stored `nextSeq` still equals it.
+   */
+  stop(id: string, runId: string, expectedNextSeq?: number): Promise<void>;
   /** `null` when the signed-in user has no such conversation. */
   load(id: string): Promise<LoadedConversation | null>;
   /** Fails with `exists` if the id is taken. `messages` are written at seq 0, 1, ... */

@@ -1,6 +1,6 @@
 import type { UIMessage } from "@tanstack/ai-react";
+import { deriveTree } from "@unfold/interview/derive-tree";
 import { describe, expect, it } from "vitest";
-import { deriveTree } from "#/features/tree/derive-tree";
 import { describeProblem, NO_TOOL_CALL, turnProblem } from "./turn-problem";
 
 const idea: UIMessage = {

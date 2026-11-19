@@ -1,4 +1,8 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
+import type { Tree } from "@unfold/interview/derive-tree";
+import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
+import type { FinishDecision } from "@unfold/interview/round-answers";
+import { proposeFinish } from "@unfold/interview/tools";
 import { LoaderCircleIcon } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
@@ -18,17 +22,14 @@ import { clearPendingIdea, readPendingIdea, savePendingIdea } from "#/features/a
 import { useSession } from "#/features/auth/session";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
-import type { Tree } from "#/features/tree/derive-tree";
+import type { StoredHistory } from "#/features/storage/types";
 import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
 import { parkFocus, rescueFocus } from "#/lib/focus";
 import { ChatMessage } from "./chat-message";
 import { Composer } from "./composer";
 import { EmptyState } from "./empty-state";
 import { FinishCard } from "./finish-card";
-import { DEFAULT_PROVIDER } from "./providers";
-import type { FinishDecision } from "./round-answers";
 import { RoundForm } from "./round-form";
-import { proposeFinish } from "./tools";
 import { TurnError } from "./turn-error";
 import { describeProblem } from "./turn-problem";
 import { useInterviewChat } from "./use-interview-chat";
@@ -44,7 +45,8 @@ export function ChatPane({
   threadId,
   initialMessages,
   onFinish,
-  onSavable,
+  beforeRun,
+  onStop,
   onStartOver,
   onTree,
   selectedId = null,
@@ -56,8 +58,10 @@ export function ChatPane({
   threadId: string;
   initialMessages?: Array<UIMessage>;
   onFinish?: (message: UIMessage) => void;
-  /** Called when more of the conversation may be stored (ADR 0013). */
-  onSavable?: (messages: Array<UIMessage>) => void;
+  /** Runs before every request; storage must hold the messages first (ADR 0015). */
+  beforeRun?: (messages: ReadonlyArray<UIMessage>) => Promise<StoredHistory>;
+  /** Called when the user stops a run. */
+  onStop?: () => void;
   /** What "Start over" does. Stored conversations are never cleared, so the app starts a new one. */
   onStartOver?: () => void;
   /** Called with the decision tree whenever its content changes (ADR 0012). */
@@ -75,7 +79,7 @@ export function ChatPane({
   signInReturnTo?: string | null;
   byok?: ReturnType<typeof getByok>;
 }) {
-  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, onSavable });
+  const chat = useInterviewChat(threadId, initialMessages, { byok, onFinish, beforeRun, onStop });
   // The round being answered, and its question nodes in order (#31).
   const pendingMessageId = chat.pending
     ? (chat.messages.find((message) =>

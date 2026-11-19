@@ -9,6 +9,7 @@ import {
   findOwned,
   findTurn,
   insertMessages,
+  lastMessageId,
   owner,
   record,
   toRecord,
@@ -89,17 +90,28 @@ export const get = query({
 /**
  * Starts a run on the idea `id` for the user `ownerId`, whom the action has signed in. Allowed
  * only when the idea has no turn or an interrupted one, which the new run replaces. Fails with
- * `missing` when the user has no such idea, and `busy` while another run owns the turn.
+ * `missing` when the user has no such idea, `busy` while another run owns the turn, and
+ * `conflict` unless the idea holds exactly `expectedNextSeq` messages, the last of them
+ * `expectedLastMessageId`: the run's request carries that history, and its reply is appended after
+ * it. Two tabs can hold histories of the same length that differ, so the count alone is not enough.
  */
 export const start = internalMutation({
-  args: { ownerId: v.id("users"), id: v.string(), runId: v.string() },
+  args: {
+    ownerId: v.id("users"),
+    id: v.string(),
+    runId: v.string(),
+    expectedNextSeq: v.number(),
+    expectedLastMessageId: v.union(v.string(), v.null()),
+  },
   returns: v.id("ideas"),
-  handler: async (ctx, { ownerId, id, runId }) => {
+  handler: async (ctx, { ownerId, id, runId, expectedNextSeq, expectedLastMessageId }) => {
     checkRunId(runId);
     const idea = await findOwned(ctx, ownerId, id);
     if (!idea) fail("missing");
     const turn = await findTurn(ctx, idea._id);
     if (turn && turn.status !== "interrupted") fail("busy");
+    if (idea.nextSeq !== expectedNextSeq) fail("conflict");
+    if ((await lastMessageId(ctx, idea)) !== expectedLastMessageId) fail("conflict");
     if (turn) await ctx.db.delete(turn._id);
     const now = Date.now();
     await ctx.db.insert("turns", { ideaId: idea._id, runId, status: "running", lastWriteAt: now });
@@ -236,15 +248,18 @@ export const answer = mutation({
  * Stops the caller's run `runId`, running or waiting: the turn becomes interrupted, so the next
  * run may replace it. A running action stops at its next write. Stopping a waiting run abandons
  * its question, which is also the way out when the answer cannot be stored (`too-large`).
- * A run that already ended, or another run, is left alone.
+ * A run that already ended, or another run, is left alone. With `expectedNextSeq` it fails with
+ * `conflict` when another write moved `nextSeq`: the caller checked the stored history and must
+ * not abandon a question asked after that history (another tab's).
  */
 export const stop = mutation({
-  args: { id: v.string(), runId: v.string() },
+  args: { id: v.string(), runId: v.string(), expectedNextSeq: v.optional(v.number()) },
   returns: v.null(),
-  handler: async (ctx, { id, runId }) => {
+  handler: async (ctx, { id, runId, expectedNextSeq }) => {
     const userId = await owner(ctx);
     const idea = await findOwned(ctx, userId, id);
     if (!idea) return null;
+    if (expectedNextSeq !== undefined && idea.nextSeq !== expectedNextSeq) fail("conflict");
     const turn = await findTurn(ctx, idea._id);
     if (turn && turn.runId === runId && turn.status !== "interrupted") {
       await ctx.db.patch(turn._id, { status: "interrupted" });

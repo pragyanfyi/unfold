@@ -1,5 +1,7 @@
 import type { UIMessage } from "@tanstack/ai-react";
 import { TextPart } from "@tanstack/ai-react/ui";
+import type { RoundAnswers } from "@unfold/interview/round-answers";
+import { askRound, proposeFinish } from "@unfold/interview/tools";
 import { LoaderCircleIcon } from "lucide-react";
 import { Bubble, BubbleContent } from "#/components/ui/bubble";
 import { Message, MessageContent } from "#/components/ui/message";
@@ -7,8 +9,6 @@ import { Trace, TraceIcon, TraceLine, TraceTitle } from "#/components/ui/trace";
 import { cn } from "#/lib/utils";
 import { RoundSummary } from "./parts/round-summary";
 import { ThinkingPart } from "./parts/thinking-part";
-import type { RoundAnswers } from "./round-answers";
-import { askRound, proposeFinish } from "./tools";
 
 export function ChatMessage({
   message,

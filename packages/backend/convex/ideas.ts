@@ -152,6 +152,20 @@ export async function findTurn(ctx: QueryCtx, ideaId: Id<"ideas">) {
     .unique();
 }
 
+/**
+ * The chat library's id of the idea's last stored message, or null when it has none. With
+ * `nextSeq` it identifies the stored history: messages are append-only and each id is unique, so
+ * two histories of the same length with the same last message are the same history.
+ */
+export async function lastMessageId(ctx: QueryCtx, idea: Doc<"ideas">): Promise<string | null> {
+  if (idea.nextSeq === 0) return null;
+  const last = await ctx.db
+    .query("messages")
+    .withIndex("by_idea_seq", (q) => q.eq("ideaId", idea._id).eq("seq", idea.nextSeq - 1))
+    .unique();
+  return last?.messageId ?? null;
+}
+
 /** The caller's ideas, most recently updated first. */
 export const list = query({
   args: {},
@@ -164,6 +178,21 @@ export const list = query({
       .order("desc")
       .collect();
     return ideas.map(toRecord);
+  },
+});
+
+/**
+ * One idea's record and the id of its last stored message, without the messages, or null when
+ * the caller has no such idea. The browser checks its own history against both before a run.
+ */
+export const get = query({
+  args: { id: v.string() },
+  returns: v.union(v.null(), v.object({ record, lastMessageId: v.union(v.string(), v.null()) })),
+  handler: async (ctx, { id }) => {
+    const userId = await owner(ctx);
+    const idea = await findOwned(ctx, userId, id);
+    if (!idea) return null;
+    return { record: toRecord(idea), lastMessageId: await lastMessageId(ctx, idea) };
   },
 });
 

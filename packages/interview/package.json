@@ -1,0 +1,28 @@
+{
+  "name": "@unfold/interview",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "The interview protocol shared by every app and the backend: tools, prompt, decision tree, outline. No DOM, no React, no server code (ADR 0012).",
+  "exports": {
+    "./tools": "./src/tools.ts",
+    "./providers": "./src/providers.ts",
+    "./system-prompt": "./src/system-prompt.ts",
+    "./round-answers": "./src/round-answers.ts",
+    "./derive-tree": "./src/derive-tree.ts",
+    "./outline": "./src/outline.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/ai": "^1.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^6.0.2",
+    "vitest": "^5.1.0"
+  }
+}

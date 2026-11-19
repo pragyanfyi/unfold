@@ -4,27 +4,29 @@ Applies to everything that touches API keys, tokens or other credentials. Backgr
 
 ## How it works
 
-Unfold has no AI gateway. Users bring their own provider key (Anthropic only for now). The key is kept in the browser by the TanStack AI keyring (`features/byok/key-store.ts`): passkey-encrypted when supported, tab memory otherwise. On each chat request the client sends it in the `x-byok-anthropic` header to Unfold's own route (`routes/api/chat.ts`, handler in `features/chat/chat-handler.ts`), which calls the provider and does not store the key. So the key transits our server but is never persisted by us. What was verified, and what was not, is in the implementation notes of [ADR 0003](../adr/0003-bring-your-own-key-handling.md).
+Unfold has no AI gateway. Users bring their own provider key (Anthropic only for now). The key is kept in the browser by the TanStack AI keyring (`features/byok/key-store.ts`): passkey-encrypted when supported, tab memory otherwise. On each chat request the client sends it in the `x-byok-anthropic` header, with the user's access token in `Authorization`, to the Convex HTTP action (`packages/backend/convex/http.ts`, handler in `convex/chat/handler.ts`, ADR 0015), which calls the provider and does not store the key. So the key transits our backend but is never persisted by us. The Worker serves pages only. What was verified, and what was not, is in the implementation notes of [ADR 0003](../adr/0003-bring-your-own-key-handling.md).
 
 If you change anything that alters this, update ADR 0003 and `SECURITY.md` in the same PR.
 
-## On the chat path (`features/chat`, `features/byok`, `routes/api`)
+## On the chat path (`packages/backend/convex/chat`, `convex/http.ts`, `features/chat`, `features/byok`)
 
-- Log only through `logSafe` (`features/chat/safe-log.ts`). It takes named primitive fields and masks key-shaped text. Biome plugins in `biome-plugins/` reject `console` calls and `.headers` passed to a log call here; do not disable them. They are lexical, so review is still needed.
+- Log only through `logSafe` (`packages/backend/convex/chat/safeLog.ts`). It takes named primitive fields and masks key-shaped text. Biome plugins in `biome-plugins/` reject `console` calls and `.headers` passed to a log call here; do not disable them. They are lexical, so review is still needed.
 - Do not log, return or attach to an error anything from a provider error or a request header. Error responses are fixed strings.
-- The same goes for the user's conversation: messages and the tree outline (`forwardedProps.outline`) go to the model and never to a log or an error response. `chat-handler.test.ts` checks the outline with a sentinel.
-- The AI library logs caught errors itself. The chat route replaces that logger (`libraryLogger`); any new `chat()` call on the server must pass the same `debug` option. `libraryLogger` keeps the library's own label for the error and drops the error itself, because a provider's message can quote the user's conversation. `chat-handler.test.ts` checks this with a sentinel; if it fails after a library upgrade, the library has started putting error text in the label.
+- The same goes for the user's conversation: messages and the tree outline (`forwardedProps.outline`) go to the model and never to a log or an error response. `packages/backend/tests/chat-handler.test.ts` checks the outline with a sentinel.
+- The AI library logs caught errors itself. The chat action replaces that logger (`libraryLogger`); any new `chat()` call on the server must pass the same `debug` option. `libraryLogger` keeps the library's own label for the error and drops the error itself, because a provider's message can quote the user's conversation. `chat-handler.test.ts` checks this with a sentinel; if it fails after a library upgrade, the library has started putting error text in the label.
+- The key is read only from the request header, with `getByokKey(request, "<slug>")`, and stays in the handler. It goes only to the selected provider's adapter. **Never pass it to a Convex function (`ctx.runMutation`, `ctx.runQuery`, `ctx.runAction`) or `ctx.scheduler`, and never store it in a document**: a scheduled argument is kept until the job runs. The functions that write a run take ids and the message only, and the message is masked with `maskText` first in case the model echoes the key (`tests/chat-turns.test.ts` checks both with a sentinel).
+- Catch every error in the action and answer a fixed string. Convex returns an uncaught error's message and stack on a development deployment, and `getAuthUserId` throws on a malformed token. Never put conversation text or a provider message in a `ConvexError`'s data.
 - Read the key with `getByokKey(request, "<slug>")` (header only). Never pass a `ByokProvider` descriptor that has `env` names to the server helpers: that turns on the environment fallback.
 - Changing the CSP (`features/security/csp.ts`) needs the key risk in mind: do not add `unsafe-inline` or `unsafe-eval` to `script-src`. `connect-src` is `'self'` plus exactly our own Convex deployment's origins (ADR 0015), which `convexOrigins` takes from `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` at build time. Do not add any other host, and never a wildcard such as `*.convex.cloud`, which would let a script send a key to someone else's deployment.
 
 ## Rules
 
-1. Provider keys are never written to D1, KV, logs, analytics, error reports or any file.
+1. Provider keys are never written to a Convex document, a function argument, a scheduled job, logs, analytics, error reports or any file.
 2. Never log request headers wholesale. Log named, safe fields only.
 3. If a key could appear in a string (an error message, a URL, a stack trace), mask it before it reaches a log or an error report.
 4. The server-side environment-key fallback in the BYOK helper stays disabled in the hosted deployment.
 5. Keys never go in URLs, query strings, cookies, `localStorage`, query keys, or persisted TanStack Query cache.
-6. A key may be sent only to Unfold's own server route (the documented hop) and from there to the provider the user selected. Never send it to any other host.
+6. A key may be sent only to Unfold's own Convex HTTP action (the documented hop) and from there to the provider the user selected. Never send it to any other host.
 7. Treat XSS as a key-theft risk: no `dangerouslySetInnerHTML` without sanitising, and keep the Content-Security-Policy strict.
 8. Tests and fixtures use obviously fake keys. Never paste a real key into code, tests, issues, PRs or screenshots.
 9. Use the library's key helpers rather than custom key storage or crypto.

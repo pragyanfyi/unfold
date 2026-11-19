@@ -3,15 +3,16 @@ import { useCallback, useRef, useState } from "react";
 import { ConversationSaver, type SaveStatus } from "#/features/storage/saver";
 import { getConversationStore } from "#/features/storage/store-instance";
 
-// Connects one open conversation to storage (ADR 0013, 0015). `stored` is how many messages the
-// conversation already has in storage: 0 for a new one.
+// Connects one open conversation to storage (ADR 0013, 0015). The saver writes only what the
+// browser knows, before each run; Convex writes everything the model says (see `ConversationSaver`).
 export function useConversationSaver({
   id,
-  stored,
+  existed,
   onFirstSave,
 }: {
   id: string;
-  stored: number;
+  /** True when the conversation was already stored when the screen opened it. */
+  existed: boolean;
   /** Called once, after a new conversation was first written. */
   onFirstSave?: () => void;
 }) {
@@ -19,15 +20,14 @@ export function useConversationSaver({
   const firstSave = useRef(onFirstSave);
   firstSave.current = onFirstSave;
   const saver = useRef<ConversationSaver | null>(null);
-  const wasSaved = useRef(stored > 0);
+  const wasSaved = useRef(false);
 
   const get = useCallback(() => {
     saver.current ??= new ConversationSaver({
       store: getConversationStore(),
       id,
-      stored,
+      existed,
       onStatus: setStatus,
-      // The list of ideas is a live query, so a save needs to tell nobody but this screen.
       onSaved: () => {
         if (!wasSaved.current) {
           wasSaved.current = true;
@@ -36,9 +36,13 @@ export function useConversationSaver({
       },
     });
     return saver.current;
-  }, [id, stored]);
+  }, [id, existed]);
 
-  const onSavable = useCallback((messages: Array<UIMessage>) => void get().sync(messages), [get]);
+  const beforeRun = useCallback(
+    (messages: ReadonlyArray<UIMessage>) => get().beforeRun(messages),
+    [get],
+  );
+  const stopRun = useCallback(() => void get().stopRun(), [get]);
   const retry = useCallback(() => void get().retry(), [get]);
-  return { status, onSavable, retry };
+  return { status, beforeRun, stopRun, retry };
 }

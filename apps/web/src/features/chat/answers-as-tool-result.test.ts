@@ -1,9 +1,9 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-react";
 import { defineByok, memoryStorage } from "@tanstack/ai-react/byok";
+import { handleChatRequest } from "@unfold/backend/convex/chat/handler";
+import { askRound } from "@unfold/interview/tools";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleChatRequest } from "./chat-handler";
-import { askRound } from "./tools";
 
 // Spike for #27 (kept as a regression test): the real chat client against the real route,
 // with a scripted fake model and no real provider. It pins what the chat UI relies on:

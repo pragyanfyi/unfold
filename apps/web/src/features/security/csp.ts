@@ -57,6 +57,24 @@ export function convexOrigins(env: { url?: string; siteUrl?: string }): string[]
   return [...new Set([client.origin, socket, site.origin])];
 }
 
+/**
+ * The deployment's HTTP actions origin, where the interview's action runs: `VITE_CONVEX_SITE_URL`
+ * when set, otherwise the one inferred from a `<name>.convex.cloud` client URL. The same origin
+ * the CSP allows, so the app never calls a host the policy would block. Undefined without a
+ * deployment.
+ */
+export function convexSiteUrl(env: { url?: string; siteUrl?: string }): string | undefined {
+  if (!env.url) return undefined;
+  // Validates both URLs the same way the CSP does, and throws on a bad one.
+  const origins = convexOrigins(env);
+  // An explicit site URL is the answer as given. Read it here, not from the CSP list, whose
+  // de-duplication drops it when it shares the client URL's origin.
+  if (env.siteUrl) return new URL(env.siteUrl).origin;
+  // Otherwise it was inferred from a `<name>.convex.cloud` URL: a `.convex.site` origin, which
+  // never equals the client's, so it is the list's last entry.
+  return origins.at(-1);
+}
+
 const CLOUD = ".convex.cloud";
 const SITE = ".convex.site";
 

@@ -1,6 +1,6 @@
+import type { NodeState, Tree } from "@unfold/interview/derive-tree";
+import { describeAnswer } from "@unfold/interview/round-answers";
 import type { Edge, Node } from "@xyflow/react";
-import { describeAnswer } from "#/features/chat/round-answers";
-import type { NodeState, Tree } from "#/features/tree/derive-tree";
 import { NODE_HEIGHT, NODE_WIDTH, type Position } from "./layout-tree";
 
 // React Flow's nodes and edges, built from the tree and its layout on every change

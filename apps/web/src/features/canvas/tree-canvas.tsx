@@ -13,9 +13,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { HotkeysProvider, useHotkey } from "@tanstack/react-hotkeys";
+import type { Tree } from "@unfold/interview/derive-tree";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { appHotkeys } from "#/features/hotkeys/registry";
-import type { Tree } from "#/features/tree/derive-tree";
 import { type TreeFlowEdge, type TreeFlowNode, toFlow } from "./flow-elements";
 import { type LayoutNode, layoutTree, NODE_HEIGHT, NODE_WIDTH, type Position } from "./layout-tree";
 import { TreeEdge } from "./tree-edge";
