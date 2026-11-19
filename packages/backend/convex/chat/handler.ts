@@ -206,10 +206,8 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
     if (typeof nextSeq !== "number" || !Number.isSafeInteger(nextSeq)) {
       return jsonError(400, "invalid_body", "The request has no stored history.");
     }
-    if (
-      lastMessageId !== null &&
-      (typeof lastMessageId !== "string" || lastMessageId.length > 200)
-    ) {
+    // Any stored message id is valid here; storage bounds its size with the message's.
+    if (lastMessageId !== null && typeof lastMessageId !== "string") {
       return jsonError(400, "invalid_body", "The request has no stored history.");
     }
     const started = await deps.startTurn(ideaId, crypto.randomUUID(), { nextSeq, lastMessageId });

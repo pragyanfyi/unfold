@@ -248,15 +248,18 @@ export const answer = mutation({
  * Stops the caller's run `runId`, running or waiting: the turn becomes interrupted, so the next
  * run may replace it. A running action stops at its next write. Stopping a waiting run abandons
  * its question, which is also the way out when the answer cannot be stored (`too-large`).
- * A run that already ended, or another run, is left alone.
+ * A run that already ended, or another run, is left alone. With `expectedNextSeq` it fails with
+ * `conflict` when another write moved `nextSeq`: the caller checked the stored history and must
+ * not abandon a question asked after that history (another tab's).
  */
 export const stop = mutation({
-  args: { id: v.string(), runId: v.string() },
+  args: { id: v.string(), runId: v.string(), expectedNextSeq: v.optional(v.number()) },
   returns: v.null(),
-  handler: async (ctx, { id, runId }) => {
+  handler: async (ctx, { id, runId, expectedNextSeq }) => {
     const userId = await owner(ctx);
     const idea = await findOwned(ctx, userId, id);
     if (!idea) return null;
+    if (expectedNextSeq !== undefined && idea.nextSeq !== expectedNextSeq) fail("conflict");
     const turn = await findTurn(ctx, idea._id);
     if (turn && turn.runId === runId && turn.status !== "interrupted") {
       await ctx.db.patch(turn._id, { status: "interrupted" });

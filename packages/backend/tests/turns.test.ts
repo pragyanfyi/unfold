@@ -366,6 +366,19 @@ describe("turns", () => {
     );
   });
 
+  it("with the stored count it was checked against, stops nothing once that count moved", async () => {
+    const { alice, start } = await withIdea();
+    await start();
+    // Another tab stored a message after this one read nextSeq 1.
+    await expect(
+      code(alice.as.mutation(api.turns.stop, { id: ID, runId: RUN, expectedNextSeq: 0 })),
+    ).resolves.toBe("conflict");
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("running");
+
+    await alice.as.mutation(api.turns.stop, { id: ID, runId: RUN, expectedNextSeq: 1 });
+    expect((await alice.as.query(api.turns.get, { id: ID }))?.status).toBe("interrupted");
+  });
+
   it("holds the idea's messages while a run is running or waiting", async () => {
     const { t, alice, start } = await withIdea();
     const append = () =>

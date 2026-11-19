@@ -101,6 +101,17 @@ describe("chat turns", () => {
     expect(createAdapter).not.toHaveBeenCalled();
   });
 
+  it("accepts any stored message id as the last one, however long", async () => {
+    const { startTurn } = fakeTurn();
+    const long = "m".repeat(500);
+    const response = await handleChatRequest(
+      post({ ideaId: "idea-1", expectedNextSeq: 1, expectedLastMessageId: long }),
+      { createAdapter: () => fakeText(), startTurn },
+    );
+    await drain(response);
+    expect(startTurn.mock.calls[0][2]).toEqual({ nextSeq: 1, lastMessageId: long });
+  });
+
   it("answers 404 for an idea that is not the caller's, and 409 while busy or out of step", async () => {
     const createAdapter = vi.fn(() => fakeText());
     const missing = await handleChatRequest(post(), {

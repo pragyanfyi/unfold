@@ -47,7 +47,7 @@ function fakeStore(
       guard();
       return {};
     }),
-    stop: vi.fn(async (_id: string, _runId: string) => {}),
+    stop: vi.fn(async (_id: string, _runId: string, _expectedNextSeq?: number) => {}),
   };
   return { store: store as unknown as ConversationStore, fail, ...store };
 }
@@ -121,7 +121,8 @@ describe("ConversationSaver.beforeRun", () => {
   it("abandons a waiting question this tab does not have, then appends", async () => {
     const { saver, append, answer, stop } = setup(1, waiting("lost-question"));
     await saver.beforeRun([msg("a"), msg("b")]);
-    expect(stop).toHaveBeenCalledWith("c1", "run-1");
+    // With the stored count it checked, so a question asked after that is not abandoned.
+    expect(stop).toHaveBeenCalledWith("c1", "run-1", 1);
     expect(answer).not.toHaveBeenCalled();
     expect(append).toHaveBeenCalledWith("c1", 1, [msg("b")]);
   });
@@ -129,8 +130,35 @@ describe("ConversationSaver.beforeRun", () => {
   it("abandons a waiting question even when there is nothing to write", async () => {
     const { saver, append, stop } = setup(2, waiting("lost-question"));
     await saver.beforeRun([msg("a"), msg("b")]);
-    expect(stop).toHaveBeenCalledWith("c1", "run-1");
+    expect(stop).toHaveBeenCalledWith("c1", "run-1", 2);
     expect(append).not.toHaveBeenCalled();
+  });
+
+  it("refuses when another tab stored messages between the check and abandoning its question", async () => {
+    const { saver, stop, append, statuses } = setup(1, waiting("theirs"));
+    stop.mockRejectedValueOnce(new StorageError("conflict"));
+    await expect(saver.beforeRun([msg("a"), msg("b")])).rejects.toBeInstanceOf(StorageError);
+    expect(append).not.toHaveBeenCalled();
+    expect(statuses.at(-1)).toEqual({ kind: "conflict", reason: "changed" });
+  });
+
+  it("stores and reports each request's own messages when two overlap", async () => {
+    const { saver, create } = setup(null);
+    let finish!: () => void;
+    create.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({});
+        }),
+    );
+    const first = saver.beforeRun([msg("a")]);
+    // A second request comes in while the first is still being stored.
+    const second = saver.beforeRun([msg("a"), msg("b")]);
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create.mock.calls[0][0].messages.map((m) => m.id)).toEqual(["a"]);
+    finish();
+    expect(await first).toEqual({ nextSeq: 1, lastMessageId: "a" });
+    await second.catch(() => {});
   });
 
   it("leaves a running turn alone: it is another tab's reply", async () => {

@@ -45,8 +45,11 @@ export interface ConversationStore {
     id: string,
     input: { runId: string; expectedNextSeq: number; message: UIMessage },
   ): Promise<ConversationRecord>;
-  /** Stops the run `runId`, or abandons its waiting question. */
-  stop(id: string, runId: string): Promise<void>;
+  /**
+   * Stops the run `runId`, or abandons its waiting question. With `expectedNextSeq`, fails with
+   * `conflict` unless the stored `nextSeq` still equals it.
+   */
+  stop(id: string, runId: string, expectedNextSeq?: number): Promise<void>;
   /** `null` when the signed-in user has no such conversation. */
   load(id: string): Promise<LoadedConversation | null>;
   /** Fails with `exists` if the id is taken. `messages` are written at seq 0, 1, ... */

@@ -77,12 +77,15 @@ export class ConversationSaver {
    */
   beforeRun(messages: ReadonlyArray<UIMessage>): Promise<StoredHistory> {
     this.latest = messages;
-    return this.queue(() => this.sync());
+    // Each call stores and reports its own messages, even when a later call replaced `latest`
+    // while this one waited in the queue: the request sends these.
+    return this.queue(() => this.sync(messages));
   }
 
   /** Try again after a storage failure, with the messages of the last request. */
   retry(): Promise<void> {
-    return this.queue(() => this.sync()).then(
+    const messages = this.latest;
+    return this.queue(() => this.sync(messages)).then(
       () => {},
       () => {},
     );
@@ -127,7 +130,7 @@ export class ConversationSaver {
     return next;
   }
 
-  private async sync(): Promise<StoredHistory> {
+  private async sync(messages: ReadonlyArray<UIMessage>): Promise<StoredHistory> {
     // A conversation that conflicted is never written again, and no run may start from it.
     if (this.stopped) throw new StorageError("conflict");
     const { store, id } = this.options;
@@ -138,14 +141,14 @@ export class ConversationSaver {
       const head = await store.head(id);
       if (head) {
         this.exists = true;
-        stored = await this.catchUp(head.record.nextSeq, head.lastMessageId);
+        stored = await this.catchUp(messages, head.record.nextSeq, head.lastMessageId);
       } else if (this.exists) {
         // It was stored and is gone: deleted in another tab or device. Never recreate it.
         throw new StorageError("missing");
       } else {
-        await store.create({ id, title: titleFromIdea(this.latest), messages: this.latest });
+        await store.create({ id, title: titleFromIdea(messages), messages });
         this.exists = true;
-        stored = this.latest.length;
+        stored = messages.length;
         this.options.onSaved();
       }
     } catch (error) {
@@ -155,19 +158,23 @@ export class ConversationSaver {
     this.options.onStatus({ kind: "idle" });
     return {
       nextSeq: stored,
-      lastMessageId: stored > 0 ? (this.latest[stored - 1]?.id ?? null) : null,
+      lastMessageId: stored > 0 ? (messages[stored - 1]?.id ?? null) : null,
     };
   }
 
-  private async catchUp(nextSeq: number, lastMessageId: string | null): Promise<number> {
+  private async catchUp(
+    messages: ReadonlyArray<UIMessage>,
+    nextSeq: number,
+    lastMessageId: string | null,
+  ): Promise<number> {
     const { store, id } = this.options;
-    let pending = this.latest.slice(nextSeq);
+    let pending = messages.slice(nextSeq);
     let stored = nextSeq;
     // Storage holds another history than this tab: more messages, or as many with another last
     // one (another tab or device moved on). Checked before anything is written or stopped: a run
     // from this tab's history would answer messages the server does not hold in that order.
-    if (this.latest.length < nextSeq) throw new StorageError("conflict");
-    if (nextSeq > 0 && this.latest[nextSeq - 1]?.id !== lastMessageId) {
+    if (messages.length < nextSeq) throw new StorageError("conflict");
+    if (nextSeq > 0 && messages[nextSeq - 1]?.id !== lastMessageId) {
       throw new StorageError("conflict");
     }
     // A run waiting for an answer holds the idea, so it is dealt with even when nothing is
@@ -182,8 +189,9 @@ export class ConversationSaver {
         pending = pending.slice(1);
         stored += 1;
       } else {
-        // A question this tab does not have: abandon it.
-        await store.stop(id, turn.runId);
+        // A question this tab does not have: abandon it, unless another tab stored messages since
+        // the check above (then the question may be one asked after them, and this is a conflict).
+        await store.stop(id, turn.runId, nextSeq);
       }
     }
     // Only the user's own messages, and an answered question, are the browser's to store. A reply

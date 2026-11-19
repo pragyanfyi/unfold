@@ -141,7 +141,7 @@ Recorded on 2026-11-19. Everything below was run on a local Convex backend with 
 - **The browser** sends the idea id, the outline, `expectedNextSeq` and `expectedLastMessageId` in `forwardedProps`, the access token in `Authorization` (`useAuthToken`) and the key in `x-byok-anthropic`. The action's address is the site origin the CSP allows, inferred from a `*.convex.cloud` client URL when `VITE_CONVEX_SITE_URL` is not set (`convexSiteUrl`).
 - **Before each request the saver (`ConversationSaver.beforeRun`) brings storage up to the messages being sent**, because `ideas.append` is refused while a turn is running or waiting:
   - it creates a new idea, but never recreates one that was stored and is gone (deleted elsewhere: a `deleted` conflict);
-  - it stores the answer to the waiting run with `turns.answer`, and abandons a waiting question the tab no longer has;
+  - it stores the answer to the waiting run with `turns.answer`, and abandons a waiting question the tab no longer has, passing the stored count it checked so `turns.stop` refuses with a conflict if another tab stored messages since;
   - it skips a reply without a question at the end of the list: the action stores complete ones, so that one was stopped or failed and is never stored, and Try again can continue past it. One anywhere else fails the save;
   - it appends the rest (the user's messages, or an answered question whose turn was abandoned);
   - it refuses, as a `changed` conflict and before it stops or writes anything, when storage holds another history than the tab: more messages, or as many with another last message (`ideas.get` returns the last message's id). Another tab or device moved on.

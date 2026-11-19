@@ -63,9 +63,9 @@ export function createConvexStore(client: ConvexCalls): ConversationStore {
         }),
       ),
 
-    stop: (id, runId) =>
+    stop: (id, runId, expectedNextSeq) =>
       run(async () => {
-        await client.mutation(api.turns.stop, { id, runId });
+        await client.mutation(api.turns.stop, { id, runId, expectedNextSeq });
       }),
 
     load: (id) =>
