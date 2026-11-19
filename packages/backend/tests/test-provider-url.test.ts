@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { testProviderBaseUrl } from "./test-provider-url";
+import { testProviderBaseUrl } from "../convex/chat/test-provider-url";
 
 describe("testProviderBaseUrl", () => {
   afterEach(() => vi.unstubAllEnvs());

@@ -3,6 +3,7 @@ import {
   chat,
   chatParamsFromRequestBody,
   type StreamChunk,
+  StreamProcessor,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
@@ -16,6 +17,7 @@ import {
 } from "@unfold/interview/providers";
 import { SYSTEM_PROMPT } from "@unfold/interview/system-prompt";
 import { interviewTools } from "@unfold/interview/tools";
+import { RUN_HEARTBEAT_MS } from "../turns";
 import {
   LIBRARY_DEBUG_CATEGORIES,
   libraryLogger,
@@ -31,7 +33,29 @@ export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_MESSAGES = 400;
 export const MAX_KEY_LENGTH = 512;
 
+/**
+ * One run's hold on an idea's turn document (ADR 0015). The action builds it from its Convex
+ * context; tests pass a fake. No method takes the key: it never leaves this module's request.
+ */
+export type TurnRun = {
+  /** Writes the message so far, or only marks the run alive. False: the run lost the turn. */
+  write(message?: string): Promise<boolean>;
+  /** Ends the run with its final message. False: lost the turn, or the idea cannot hold it. */
+  end(message: string, needsAnswer: boolean): Promise<boolean>;
+  /** Marks the run interrupted. Safe to call when the turn is already lost. */
+  interrupt(): Promise<void>;
+};
+
+/** Claims the idea's turn for a new run. `missing`: no such idea of the caller's. */
+export type StartTurn = (ideaId: string, runId: string) => Promise<TurnRun | "missing" | "busy">;
+
+// How often a streaming reply is written to the turn document. The main cost lever (ADR 0015,
+// spike): each write is a mutation and re-runs the live query of every open tab.
+export const WRITE_INTERVAL_MS = 1500;
+
 export type ChatDeps = {
+  /** Where the run is recorded. Without it the handler only streams (tests of the protocol). */
+  startTurn?: StartTurn;
   /** Builds the provider adapter from the user's key. Tests pass a fake here. */
   createAdapter?: (provider: ProviderId, key: string) => AnyTextAdapter;
   log?: SafeLogger;
@@ -155,8 +179,21 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
     return jsonError(400, "invalid_key", "That key is not valid.");
   }
 
+  // Not linked to `request.signal` on purpose: a run must outlive the browser that started it
+  // (ADR 0015, spike). Only this controller stops it: Stop, a lost turn, or an error.
   const abortController = new AbortController();
-  request.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+
+  let turnRun: TurnRun | null = null;
+  if (deps.startTurn) {
+    const ideaId = params.forwardedProps.ideaId;
+    if (typeof ideaId !== "string" || ideaId.length === 0 || ideaId.length > 100) {
+      return jsonError(400, "invalid_body", "The request has no idea.");
+    }
+    const started = await deps.startTurn(ideaId, crypto.randomUUID());
+    if (started === "missing") return jsonError(404, "idea_missing", "That idea was not found.");
+    if (started === "busy") return jsonError(409, "run_busy", "A reply is already being written.");
+    turnRun = started;
+  }
 
   // Client-declared tools in the body are ignored on purpose: the model gets only ours.
   let stream: AsyncIterable<StreamChunk>;
@@ -177,9 +214,111 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
   } catch (error) {
     // Do not let an exception (and its message) escape as a framework 500 page.
     log("chat.setup_failed", { error: error instanceof Error ? error.name : "unknown" });
+    await turnRun?.interrupt().catch(() => {});
     return jsonError(500, "chat_failed", "The chat could not be started.");
   }
 
   log("chat.request", { provider: requested, messages: params.messages.length }, [key]);
-  return toServerSentEventsResponse(scrubErrors(stream, [key]), { abortController });
+  const scrubbed = scrubErrors(stream, [key]);
+  const out = turnRun ? recordRun(scrubbed, turnRun, abortController, log, [key]) : scrubbed;
+  return toServerSentEventsResponse(out);
+}
+
+// The assistant message a run produced, and whether it waits for the user: a tool call with no
+// output (`ask_round` and `propose_finish` have no handler, ADR 0012).
+function finalMessage(processor: StreamProcessor) {
+  const message = [...processor.getMessages()].reverse().find((m) => m.role === "assistant");
+  if (!message || message.parts.length === 0) return null;
+  const needsAnswer = message.parts.some(
+    (part) => part.type === "tool-call" && part.output === undefined,
+  );
+  return { json: JSON.stringify(message), needsAnswer };
+}
+
+// Passes every chunk on to the browser and records the run in the turn document. It carries on
+// recording when the browser leaves, until the model is done or the turn is lost.
+async function* recordRun(
+  stream: AsyncIterable<StreamChunk>,
+  run: TurnRun,
+  abortController: AbortController,
+  log: SafeLogger,
+  secrets: ReadonlyArray<string>,
+): AsyncGenerator<StreamChunk> {
+  const processor = new StreamProcessor();
+  let lost = false;
+  let failed = false;
+  let lastWrite = Date.now();
+  let writing: Promise<void> = Promise.resolve();
+
+  // Writes are serialised, and never block the chunks going to the browser.
+  const queueWrite = (message?: string) => {
+    lastWrite = Date.now();
+    writing = writing.then(async () => {
+      if (lost) return;
+      const ok = await run.write(message).catch(() => false);
+      if (!ok) {
+        lost = true;
+        abortController.abort();
+      }
+    });
+  };
+
+  const heartbeat = setInterval(() => {
+    if (Date.now() - lastWrite >= RUN_HEARTBEAT_MS) queueWrite();
+  }, RUN_HEARTBEAT_MS);
+
+  const observe = (chunk: StreamChunk) => {
+    if (chunk.type === "RUN_ERROR") failed = true;
+    try {
+      processor.processChunk(chunk);
+    } catch {
+      failed = true;
+    }
+    if (Date.now() - lastWrite >= WRITE_INTERVAL_MS) {
+      const current = finalMessage(processor);
+      if (current) queueWrite(current.json);
+    }
+  };
+
+  // Pulled by hand, not with `for await`: when the browser leaves, the consumer returns from the
+  // `yield`, and `for await` would then close the model's stream. The run must go on instead.
+  const source = stream[Symbol.asyncIterator]();
+  let exhausted = false;
+  try {
+    for (;;) {
+      const next = await source.next();
+      if (next.done) {
+        exhausted = true;
+        break;
+      }
+      observe(next.value);
+      yield next.value;
+    }
+  } catch (error) {
+    failed = true;
+    exhausted = true;
+    log("chat.stream_failed", { error: error instanceof Error ? error.name : "unknown" }, secrets);
+    throw error;
+  } finally {
+    if (!exhausted && !lost) {
+      // The browser left mid-run (ADR 0015, spike). Keep recording until the model is done.
+      try {
+        for (;;) {
+          const next = await source.next();
+          if (next.done) break;
+          observe(next.value);
+        }
+      } catch {
+        failed = true;
+      }
+    }
+    clearInterval(heartbeat);
+    await writing;
+    // An aborted `chat()` ends quietly, so the end of the stream is not proof of success.
+    const done = !failed && !lost && !abortController.signal.aborted;
+    const final = done ? finalMessage(processor) : null;
+    let ended = false;
+    if (final) ended = await run.end(final.json, final.needsAnswer).catch(() => false);
+    if (!ended) await run.interrupt().catch(() => {});
+  }
 }

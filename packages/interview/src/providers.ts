@@ -9,5 +9,5 @@ export type ProviderId = keyof typeof PROVIDERS;
 export const DEFAULT_PROVIDER: ProviderId = "anthropic";
 
 export function isSupportedProvider(value: unknown): value is ProviderId {
-  return typeof value === "string" && Object.hasOwn(PROVIDERS, value);
+  return typeof value === "string" && Object.keys(PROVIDERS).includes(value);
 }
