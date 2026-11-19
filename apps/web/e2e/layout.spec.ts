@@ -11,7 +11,7 @@ async function startInterview(page: Page) {
   await page.getByRole("button", { name: "Add Anthropic API key" }).click();
   await page.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
-  // The saved key has no visible control afterwards, so the prompt going away is the signal.
+  // The empty-state prompt going away is the signal that the key was saved.
   await expect(page.getByText("Unfold needs your own Anthropic API key.")).toBeHidden();
   await page.getByRole("textbox", { name: "Your idea" }).fill("E2E-IDEA-LAYOUT a layout check");
   await page.getByRole("button", { name: "Send" }).click();

@@ -1,5 +1,5 @@
 import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, type Ref, useId, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { DialogFooter } from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
@@ -20,6 +20,7 @@ export function KeyForm({
   message,
   disabled = false,
   onBusyChange,
+  inputRef,
 }: {
   byok?: ReturnType<typeof getByok>;
   onSaved?: () => void;
@@ -30,6 +31,8 @@ export function KeyForm({
   disabled?: boolean;
   /** Told when a save starts and ends, so the footer's own actions can wait for it. */
   onBusyChange?: (busy: boolean) => void;
+  /** The key field, so a parent can return focus to it. */
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   const id = useId();
   const [draft, setDraft] = useState("");
@@ -66,6 +69,7 @@ export function KeyForm({
     >
       <Label htmlFor={`${id}-key`}>API key</Label>
       <Input
+        ref={inputRef}
         id={`${id}-key`}
         type="password"
         autoComplete="off"
