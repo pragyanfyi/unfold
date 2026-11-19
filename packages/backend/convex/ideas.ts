@@ -24,9 +24,11 @@ export type IdeaErrorCode =
   | "too-new"
   | "invalid"
   | "too-large"
-  | "damaged";
+  | "damaged"
+  | "busy"
+  | "stale";
 
-function fail(code: IdeaErrorCode): never {
+export function fail(code: IdeaErrorCode): never {
   throw new ConvexError({ code });
 }
 
@@ -50,7 +52,7 @@ export const MAX_IDEA_MESSAGES = 4096;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ROLES = new Set(["system", "user", "assistant", "activity"]);
 
-const record = v.object({
+export const record = v.object({
   id: v.string(),
   title: v.string(),
   schemaVersion: v.number(),
@@ -61,7 +63,7 @@ const record = v.object({
 });
 
 // Only the fields the app needs (docs/internals/data-fetching.md): never the owner or Convex ids.
-function toRecord(idea: Doc<"ideas">) {
+export function toRecord(idea: Doc<"ideas">) {
   return {
     id: idea.clientId,
     title: idea.title,
@@ -73,14 +75,14 @@ function toRecord(idea: Doc<"ideas">) {
   };
 }
 
-async function owner(ctx: QueryCtx): Promise<Id<"users">> {
+export async function owner(ctx: QueryCtx): Promise<Id<"users">> {
   const userId = await getAuthUserId(ctx);
   if (userId === null) fail("signed-out");
   return userId;
 }
 
 // The caller's idea with this client id, or null. Someone else's idea is null too.
-async function findOwned(ctx: QueryCtx, userId: Id<"users">, clientId: string) {
+export async function findOwned(ctx: QueryCtx, userId: Id<"users">, clientId: string) {
   const idea = await ctx.db
     .query("ideas")
     .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
@@ -98,7 +100,7 @@ function byteLength(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
-function checkMessage(json: string): string {
+export function checkMessage(json: string): string {
   if (byteLength(json) > MAX_MESSAGE_BYTES) fail("invalid");
   let parsed: unknown;
   try {
@@ -115,7 +117,7 @@ function checkMessage(json: string): string {
 }
 
 // Checks the messages and that the idea stays under its limits; returns the idea's new size.
-function checkMessages(
+export function checkMessages(
   stored: { count: number; bytes: number },
   messages: ReadonlyArray<string>,
 ): number {
@@ -130,7 +132,7 @@ function checkMessages(
   return bytes;
 }
 
-async function insertMessages(
+export async function insertMessages(
   ctx: MutationCtx,
   ideaId: Id<"ideas">,
   from: number,
@@ -140,6 +142,14 @@ async function insertMessages(
   for (const [index, message] of messages.entries()) {
     await ctx.db.insert("messages", { ideaId, seq: from + index, messageId: ids[index], message });
   }
+}
+
+/** The idea's turn document (ADR 0015), or null when nothing is waiting or streaming. */
+export async function findTurn(ctx: QueryCtx, ideaId: Id<"ideas">) {
+  return ctx.db
+    .query("turns")
+    .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
+    .unique();
 }
 
 /** The caller's ideas, most recently updated first. */
@@ -230,6 +240,10 @@ export const append = mutation({
     if (!idea) fail("missing");
     if (idea.schemaVersion > schemaVersion) fail("too-new");
     if (idea.nextSeq !== expectedNextSeq) fail("conflict");
+    // A run's reply goes after the messages it was started with; one appended under it would
+    // land before a reply that never saw it. An interrupted turn does not hold the idea.
+    const turn = await findTurn(ctx, idea._id);
+    if (turn && turn.status !== "interrupted") fail("busy");
     const bytes = checkMessages({ count: idea.nextSeq, bytes: idea.bytes }, messages);
     await insertMessages(ctx, idea._id, idea.nextSeq, messages);
     await ctx.db.patch(idea._id, {
@@ -266,7 +280,10 @@ export const rename = mutation({
   },
 });
 
-/** Deletes an idea and all its messages. A missing idea is not an error. */
+/**
+ * Deletes an idea, all its messages and its turn. A missing idea is not an error. A run still
+ * streaming finds its turn gone at its next write and stops.
+ */
 export const remove = mutation({
   args: { id: v.string() },
   returns: v.null(),
@@ -279,6 +296,8 @@ export const remove = mutation({
       .withIndex("by_idea_seq", (q) => q.eq("ideaId", idea._id))
       .collect();
     for (const row of rows) await ctx.db.delete(row._id);
+    const turn = await findTurn(ctx, idea._id);
+    if (turn) await ctx.db.delete(turn._id);
     await ctx.db.delete(idea._id);
     return null;
   },

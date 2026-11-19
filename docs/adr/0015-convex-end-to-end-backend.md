@@ -22,7 +22,7 @@ What we checked (all read 2026-11-17):
 
 ## Decision
 
-Built so far: the Convex project and deploy (#35), accounts (#34, ADR 0016) and storage (#74, see "Built in #74" below). Not built yet: the chat move (#75), with the turn document and run ownership. Until it ships, the model call runs on the Worker as ADR 0003 describes, and the parts below marked "planned" describe the design it will build.
+Built so far: the Convex project and deploy (#35), accounts (#34, ADR 0016) and storage (#74, see "Built in #74" below). The turn document and run ownership are built (#75, `turns.ts`) but nothing writes them yet. Not built yet: the HTTP action that runs the model (#75). Until it ships, the model call runs on the Worker as ADR 0003 describes.
 
 ### What runs where
 
@@ -53,11 +53,11 @@ IndexedDB storage (ADR 0013) is removed, with `idb`, `fake-indexeddb`, the Broad
   - when a run ends with a closing reply that needs no answer, in the mutation that ends the run.
 
   A failed or stopped run is never appended.
-- **One run per idea, owned by a run id (planned).** A turn document will have one of three statuses: `running` (the action is streaming), `waiting` (the run ended with a round or finish proposal that needs the user's answer) and `interrupted`. Starting a run will be a mutation that writes a new run id, `running` and a last-write time.
-  - **Batch writes and the end-of-run mutation** will require the same run id **and** `running`, in the same transaction. A run that resumes after its turn was marked `interrupted`, or after another run took over, is rejected and writes nothing. The end-of-run mutation either appends a closing reply and clears the turn, or sets `waiting`.
-  - **The answer mutation** will require `waiting` and the run id the user is answering, and check `nextSeq` where it appends.
-  - A new run will be allowed to start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
-- **Marking a run interrupted will not rely on the action (planned).** If the action fails or is stopped, it will mark the turn `interrupted` itself, with the same guard as its other writes (its own run id and `running`), so a failing stale run cannot interrupt a newer run's turn. If it dies without doing so, a scheduled check will. The start mutation will schedule a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
+- **One run per idea, owned by a run id.** A turn document has one of three statuses: `running` (the action is streaming), `waiting` (the run ended with a round or finish proposal that needs the user's answer) and `interrupted`. Starting a run is a mutation that writes a new run id, `running` and a last-write time.
+  - **Batch writes and the end-of-run mutation** require the same run id **and** `running`, in the same transaction. A run that resumes after its turn was marked `interrupted`, or after another run took over, is rejected and writes nothing. The end-of-run mutation either appends a closing reply and clears the turn, or sets `waiting`.
+  - **The answer mutation** requires `waiting` and the run id the user is answering, and check `nextSeq` where it appends.
+  - A new run may start only when there is no turn, or the turn is `interrupted`; a second tab or a Try again cannot start one while another run owns the turn.
+- **Marking a run interrupted does not rely on the action.** If the action fails or is stopped, it will mark the turn `interrupted` itself, with the same guard as its other writes (its own run id and `running`), so a failing stale run cannot interrupt a newer run's turn. If it dies without doing so, a scheduled check will. The start mutation schedules a check mutation, with only the idea id and run id as arguments, never the key. When it runs:
   - if another run owns the turn, or the turn is no longer `running`, it does nothing and does not reschedule;
   - if the same run owns the turn and has not written for a set time, it marks the turn `interrupted`;
   - otherwise the run is still active, and it schedules itself again for the set time after the run's last write.
@@ -107,7 +107,11 @@ Recorded on 2026-11-19, while building the storage move.
 
 - **Ideas keep their browser-made id.** An idea has a `clientId` (the UUIDv7 the browser already makes) with its own index, and addresses stay `/c/<clientId>`. The screen gives a new idea its address on the first save without remounting the chat, which needs the id before the save returns; a Convex `_id` would arrive only after it.
 - **A message is stored as JSON text** (`message: v.string()`), not as a Convex object. A `UIMessage` can hold a `Date` and keys that Convex does not allow as field names. The append mutation checks that each one parses, has an `id`, a known `role` and `parts`, and is at most 512 KiB.
-- **The turn document waits for #75.** While the chat runs on the Worker, the server never holds a message that is not final: the browser keeps it, as before. The turn document, run ids and statuses are built with the HTTP action that writes them.
+- **The turn document waits for #75.** While the chat runs on the Worker, the server never holds a message that is not final: the browser keeps it, as before. The turn document, run ids and statuses were built in #75, before the HTTP action that writes them; the notes are in `convex/turns.ts`:
+  - The writes of a run (`start`, `batch`, `end`, `interrupt`) and the scheduled `check` are internal mutations, so only the action can call them; the action passes the signed-in user's id to `start`. The owner's calls are `get` (live), `answer` and `stop`. Stop marks a running or waiting turn `interrupted`; a running action sees it at its next write, which returns false. Stopping a waiting turn abandons its question, which is also the way out if an answer is too large to store. `end` checks the idea's limits before it sets `waiting`, so a run never waits for an answer the idea cannot hold.
+  - The turn holds the whole message as JSON text, replaced at each batch, as message documents do.
+  - A turn goes stale after `RUN_STALE_MS` (90 seconds) without a write, and the action, when it is built, must write at least every `RUN_HEARTBEAT_MS` (30 seconds), even with nothing new, so a model that is slow to start is not mistaken for a dead run.
+  - `ideas.append` is refused with `busy` while a turn is `running` or `waiting`, so no message lands under a run that did not see it. An interrupted turn does not hold the idea. Deleting an idea deletes its turn.
 - **The list of ideas is a live query** through `@convex-dev/react-query`, so a change in another tab or on another device shows up without the BroadcastChannel hint. One-off reads and writes go through the existing `ConversationStore` seam.
 - **An idea holds at most 8 MiB and 4,096 messages** (`MAX_IDEA_BYTES`, tracked in `ideas.bytes`, and `MAX_IDEA_MESSAGES`). `load` returns every message and `remove` reads and deletes every message, each in one call. Convex caps a call at 16 MiB read and returned, an array at 8,192 elements, and a transaction in documents read and written; the caps keep both possible for any idea. An interview is a few hundred KiB, so the cap is thousands of turns. A save past it is refused, and the app says the conversation is not saved. Paging both reads would remove the cap, if ideas ever need to be larger. One write carries at most 100 messages; the browser splits a longer queue.
 - `ownerId` became `v.id("users")` and `message` became a string. Neither is backward compatible in general, but no function had written either table, so no document existed to break.
