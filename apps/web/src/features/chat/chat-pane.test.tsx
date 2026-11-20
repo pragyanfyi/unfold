@@ -101,7 +101,7 @@ describe("ChatPane: empty state and key", () => {
   it("offers a key prompt and example ideas that fill the composer without sending", async () => {
     const { fetchMock } = stubNetwork([]);
     render(<ChatPane threadId="t1" byok={await byokWithKey(false)} />);
-    expect(screen.getByRole("button", { name: /add anthropic api key/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /add your api key/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /neighbours share tools/i }));
     expect((screen.getByLabelText("Your idea") as HTMLTextAreaElement).value).toMatch(/neighbours/);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -716,11 +716,9 @@ describe("ChatPane: onboarding (ADR 0016)", () => {
       fakeSession({ status: "signed-out", signInWithGoogle }),
       <ChatPane threadId="t1" byok={await byokWithKey(true)} />,
     );
-    expect(
-      screen.getByText(/sign in with Google, then add your own Anthropic API key/),
-    ).toBeTruthy();
+    expect(screen.getByText(/sign in with Google, then add your own API key/)).toBeTruthy();
     // No key button before sign-in: the key comes second.
-    expect(screen.queryByRole("button", { name: /add anthropic api key/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /add your api key/i })).toBeNull();
 
     await sendIdea("My idea");
     const dialog = await screen.findByRole("dialog", { name: "Before your first interview" });

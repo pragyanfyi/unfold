@@ -1,6 +1,7 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleChatRequest, MAX_BODY_BYTES, MAX_MESSAGES } from "../convex/chat/handler";
+import { maskText } from "../convex/chat/safeLog";
 
 // Obviously fake. It is long and unusual enough to be found anywhere it leaks.
 const SENTINEL_KEY = "sk-ant-FAKE-SENTINEL-do-not-leak-0123456789";
@@ -27,6 +28,8 @@ function post(payload: unknown, headers: Record<string, string> = {}) {
 }
 
 const withKey = { "x-byok-anthropic": SENTINEL_KEY };
+// A fake Google-shaped key (`AIza` and 35 characters), for the Gemini provider (#48).
+const GEMINI_SENTINEL_KEY = "AIzaFAKE-GEMINI-SENTINEL-do-not-leak-01";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -63,6 +66,42 @@ describe("chat route: key handling", () => {
     const res = await handleChatRequest(post(body(), withKey), { createAdapter });
     await res.text();
     expect(createAdapter).toHaveBeenCalledWith("anthropic", SENTINEL_KEY);
+  });
+});
+
+describe("chat route: Gemini (#48)", () => {
+  const gemini = body({ forwardedProps: { provider: "gemini" } });
+
+  it("hands a Gemini key to the Gemini adapter only", async () => {
+    const fake = fakeText();
+    fake.setResponses([{ text: "ok" }]);
+    const createAdapter = vi.fn(() => fake);
+    const res = await handleChatRequest(post(gemini, { "x-byok-gemini": GEMINI_SENTINEL_KEY }), {
+      createAdapter,
+    });
+    await res.text();
+    expect(createAdapter).toHaveBeenCalledExactlyOnceWith("gemini", GEMINI_SENTINEL_KEY);
+  });
+
+  it("reads only the chosen provider's header: an Anthropic key is not used for Gemini", async () => {
+    const createAdapter = vi.fn();
+    const res = await handleChatRequest(post(gemini, withKey), { createAdapter });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: { type: "byok_missing", provider: "gemini" } });
+    expect(createAdapter).not.toHaveBeenCalled();
+  });
+
+  it("never falls back to a server-side Google key", async () => {
+    vi.stubEnv("GEMINI_API_KEY", GEMINI_SENTINEL_KEY);
+    vi.stubEnv("GOOGLE_API_KEY", GEMINI_SENTINEL_KEY);
+    const createAdapter = vi.fn();
+    const res = await handleChatRequest(post(gemini), { createAdapter });
+    expect(res.status).toBe(401);
+    expect(createAdapter).not.toHaveBeenCalled();
+  });
+
+  it("masks a Google-shaped key it was not told about", () => {
+    expect(maskText(`key ${GEMINI_SENTINEL_KEY} failed`)).toBe("key [redacted] failed");
   });
 });
 

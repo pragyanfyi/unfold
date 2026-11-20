@@ -8,6 +8,7 @@ import {
 } from "@tanstack/ai";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { createGeminiChat } from "@tanstack/ai-gemini";
 import { outlineSchema, renderOutline } from "@unfold/interview/outline";
 import {
   DEFAULT_PROVIDER,
@@ -73,10 +74,12 @@ export type ChatDeps = {
 };
 
 function defaultCreateAdapter(provider: ProviderId, key: string): AnyTextAdapter {
-  // One provider today; the map is keyed by the allow-list so a new one is a type error here.
+  // Keyed by the allow-list, so a provider added there without an adapter is a type error here.
+  // The key is always passed explicitly: neither adapter then reads a server environment key.
+  const baseURL = testProviderBaseUrl();
   const factories: Record<ProviderId, (key: string) => AnyTextAdapter> = {
-    anthropic: (k) =>
-      createAnthropicChat(PROVIDERS.anthropic.model, k, { baseURL: testProviderBaseUrl() }),
+    anthropic: (k) => createAnthropicChat(PROVIDERS.anthropic.model, k, { baseURL }),
+    gemini: (k) => createGeminiChat(PROVIDERS.gemini.model, k, { baseURL }),
   };
   return factories[provider](key);
 }

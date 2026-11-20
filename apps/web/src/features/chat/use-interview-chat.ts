@@ -1,6 +1,5 @@
 import { type UIMessage, useChat } from "@tanstack/ai-react";
 import { deriveTree, type Tree } from "@unfold/interview/derive-tree";
-import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
 import {
   type Answer,
   buildRoundAnswers,
@@ -13,6 +12,7 @@ import { askRound, proposeFinish } from "@unfold/interview/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "#/features/auth/session";
 import { getByok } from "#/features/byok/key-store";
+import { chatProvider } from "#/features/byok/saved-key";
 import type { StoredHistory } from "#/features/storage/types";
 import { chatUrl, interviewConnection } from "./connection";
 import { turnProblem } from "./turn-problem";
@@ -29,7 +29,9 @@ type Waiter = {
 };
 
 // The chat client for the interview. `byok` makes the client read the key from the keyring
-// and stamp it in the `x-byok-anthropic` header on each send (the key is never in the body).
+// and stamp it in the `x-byok-<provider>` header on each send (the key is never in the body).
+// The provider is the saved key's (#48), read when each request is made: `byokProvider` picks
+// the header and the connection puts the same provider in the body, so the two always agree.
 // With no key, the send fails with ByokBlockedError and the key dialog is requested
 // (`byok.getSnapshot().prompt`). Storage (#28) feeds `initialMessages`. The library's own
 // `persistence` stays off: `beforeRun` stores what the browser knows before each request, and the
@@ -120,6 +122,7 @@ export function useInterviewChat(
         ideaId: threadId,
         url: chatUrl(__CONVEX_SITE_URL__),
         getToken: () => getToken.current(),
+        getProvider: () => chatProvider(byok.getSnapshot()),
         beforeRun: (messages) =>
           beforeRun.current?.(messages) ??
           Promise.resolve({
@@ -127,7 +130,7 @@ export function useInterviewChat(
             lastMessageId: messages.at(-1)?.id ?? null,
           }),
       }),
-    [threadId],
+    [threadId, byok],
   );
 
   const chat = useChat({
@@ -135,7 +138,7 @@ export function useInterviewChat(
     initialMessages,
     connection,
     byok,
-    forwardedProps: { provider: DEFAULT_PROVIDER },
+    byokProvider: () => chatProvider(byok.getSnapshot()),
     tools,
     onFinish: handleFinish,
   });

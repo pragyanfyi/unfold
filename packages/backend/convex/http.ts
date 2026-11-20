@@ -1,4 +1,5 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { PROVIDER_IDS } from "@unfold/interview/providers";
 import { httpRouter } from "convex/server";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
@@ -13,6 +14,9 @@ import { logSafe } from "./chat/safeLog";
 // The key stays in that header: it is never an argument of `runMutation`, the scheduler or any
 // other function, a document field or a log line (ADR 0003). Every error is a fixed string.
 
+// One key header per supported provider (ADR 0003): the browser sends only the one in use.
+const BYOK_HEADERS = PROVIDER_IDS.map((id) => `x-byok-${id}`);
+
 // The origins that may call the action: the same ones sign-in sends people back to.
 function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("origin");
@@ -20,7 +24,12 @@ function corsHeaders(request: Request): Record<string, string> {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, authorization, x-byok-anthropic, x-run-id",
+    "access-control-allow-headers": [
+      "content-type",
+      "authorization",
+      ...BYOK_HEADERS,
+      "x-run-id",
+    ].join(", "),
     // A tab reuses one preflight for many turns. Chromium caps this at 2 hours.
     "access-control-max-age": "7200",
     vary: "origin",

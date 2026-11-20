@@ -4,13 +4,14 @@ import { buildOutline } from "@unfold/interview/outline";
 import type { StoredHistory } from "#/features/storage/types";
 
 // The connection to the interview, which runs in a Convex HTTP action (ADR 0015). Each request
-// carries, next to `provider` in `forwardedProps`:
+// carries, in `forwardedProps`:
+// - `provider`, the saved key's provider (#48), read as the request is made, and
 // - the tree outline (ADR 0012), and
 // - the idea's id, so the action records the run in that idea's turn document, and
 // - `expectedNextSeq` and `expectedLastMessageId`, the stored history `beforeRun` reached, so the
 //   action refuses a run from history the server does not hold (another tab moved on).
 // The signed-in user's access token goes in `Authorization`; the provider key goes in
-// `x-byok-anthropic`, added by the keyring (ADR 0003). The action's address is the build's
+// `x-byok-<provider>`, added by the keyring (ADR 0003). The action's address is the build's
 // `__CONVEX_SITE_URL__`, the same origin the CSP allows (`connect-src`, ADR 0015).
 //
 // The outline is built here, from the very messages being sent, and not passed through the
@@ -21,6 +22,8 @@ export type InterviewConnectionOptions = {
   /** The address of the action's `/chat` route. */
   url: string;
   getToken: () => string | null;
+  /** The provider of the key the chat client sends with this request. */
+  getProvider: () => string;
   /**
    * Runs before every request with the messages being sent, and the request is not sent if it
    * throws: storage must hold them first (`ConversationSaver.beforeRun`). Resolves with the
@@ -51,6 +54,7 @@ export function interviewConnection(options: InterviewConnectionOptions) {
     const outline = buildOutline(deriveTree(ui));
     const props = {
       ...data,
+      provider: options.getProvider(),
       outline,
       ideaId: options.ideaId,
       expectedNextSeq: stored?.nextSeq,

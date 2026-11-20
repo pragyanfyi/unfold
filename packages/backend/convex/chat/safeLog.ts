@@ -9,8 +9,9 @@ import { scrubSecrets } from "@tanstack/ai/byok";
 
 export type LogFields = Record<string, string | number | boolean | null>;
 
-// Anything that looks like a provider key, even one we were not told about.
-const KEY_SHAPED = /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g;
+// Anything that looks like a provider key, even one we were not told about: `sk-` style keys
+// (Anthropic, OpenAI and others) and Google API keys (`AIza` and 35 more characters).
+const KEY_SHAPED = /\b(?:(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{30,})/g;
 
 export function maskText(text: string, secrets: ReadonlyArray<string> = []): string {
   return scrubSecrets(text, secrets).replace(KEY_SHAPED, "[redacted]");

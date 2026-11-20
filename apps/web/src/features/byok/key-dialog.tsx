@@ -1,5 +1,5 @@
 import { useByok } from "@tanstack/ai-react";
-import { DEFAULT_PROVIDER, PROVIDERS } from "@unfold/interview/providers";
+import { PROVIDERS } from "@unfold/interview/providers";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -11,8 +11,9 @@ import {
   DialogTrigger,
 } from "#/components/ui/dialog";
 import { rescueFocus } from "#/lib/focus";
-import { ANTHROPIC_KEYS_URL, KeyForm } from "./key-form";
+import { KeyForm } from "./key-form";
 import { getByok } from "./key-store";
+import { savedKey } from "./saved-key";
 
 // `open` and `onOpenChange` are optional: the chat opens the dialog when a send is blocked for
 // lack of a key. Without them the dialog manages itself. `trigger` replaces the default button
@@ -28,12 +29,10 @@ export function KeyDialog({
   onOpenChange?: (open: boolean) => void;
   trigger?: ReactNode;
 }) {
-  const provider = DEFAULT_PROVIDER;
-  const label = PROVIDERS[provider].label;
-  const snapshot = useByok(byok);
-  const current = snapshot.status[provider];
-  // A failed save also leaves a status ("error"); that key is NOT stored, so it does not count.
-  const status = current?.state === "set" || current?.state === "locked" ? current : undefined;
+  // The one stored key, of whichever provider (#48). A failed save leaves an "error" status,
+  // but that key is NOT stored, so it does not count.
+  const saved = savedKey(useByok(byok));
+  const status = saved?.status;
   const [ownOpen, setOwnOpen] = useState(false);
   const open = controlledOpen ?? ownOpen;
   const setOpen = onControlledOpenChange ?? setOwnOpen;
@@ -81,7 +80,7 @@ export function KeyDialog({
     setBusy(true);
     setError(null);
     try {
-      await byok.clear(provider);
+      if (saved) await byok.clear(saved.provider);
     } catch {
       setError("Your key could not be removed. Try again.");
     } finally {
@@ -94,21 +93,24 @@ export function KeyDialog({
       <DialogTrigger asChild>
         {trigger ?? (
           <Button variant="outline">
-            {status ? `${label} key: ${status.masked}` : `Add ${label} API key`}
+            {saved
+              ? `${PROVIDERS[saved.provider].label} key: ${saved.status.masked}`
+              : "Add your API key"}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{label} API key</DialogTitle>
+          <DialogTitle>Your API key</DialogTitle>
           <DialogDescription>
             Your key stays in this browser. Unfold's server sees it with each request because it
-            forwards the request to {label}, but never stores or logs it.{" "}
+            forwards the request to the provider, but never stores or logs it.{" "}
             {byok.storage.persistent
               ? "It is saved encrypted with a passkey."
               : "It is kept in memory for this tab only and is gone when you close it."}{" "}
-            {status ? "Saving a new key replaces the one you have. " : null}
-            <KeysLink />
+            {saved
+              ? `You have a ${PROVIDERS[saved.provider].label} key. Saving a new key replaces it.`
+              : null}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,19 +148,5 @@ export function KeyDialog({
         />
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** Where to get a key. Opens Anthropic's console in a new tab. */
-export function KeysLink() {
-  return (
-    <a
-      href={ANTHROPIC_KEYS_URL}
-      target="_blank"
-      rel="noreferrer"
-      className="font-medium text-foreground underline underline-offset-4"
-    >
-      Create a key at Anthropic (opens in a new tab)
-    </a>
   );
 }

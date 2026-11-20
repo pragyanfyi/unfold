@@ -7,11 +7,11 @@ import { addPasskeyAuthenticator, FAKE_KEY, signIn } from "./support";
 // tests share one mock server and can run in parallel.
 
 async function saveKey(page: Page) {
-  await page.getByRole("button", { name: "Add Anthropic API key" }).click();
+  await page.getByRole("button", { name: "Add your API key" }).click();
   await page.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
   // The empty-state prompt going away is the signal that the key was saved.
-  await expect(page.getByText("Unfold needs your own Anthropic API key.")).toBeHidden();
+  await expect(page.getByText("Unfold needs your own API key")).toBeHidden();
 }
 
 async function sendIdea(page: Page, idea: string) {
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 test("shows the empty state and example ideas that only fill the composer", async ({ page }) => {
   await expect(page.getByText("Think an idea all the way through")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add Anthropic API key" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add your API key" })).toBeVisible();
 
   await page
     .getByRole("button", { name: "A mobile app that helps neighbours share tools" })

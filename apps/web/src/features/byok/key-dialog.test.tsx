@@ -24,9 +24,19 @@ function storage(overrides: Partial<KeyringStorage> = {}): KeyringStorage & { sa
 }
 
 async function openAndType(key: string) {
-  fireEvent.click(screen.getByRole("button", { name: /add anthropic api key/i }));
+  fireEvent.click(screen.getByRole("button", { name: /add your api key/i }));
   fireEvent.change(await screen.findByLabelText("API key"), { target: { value: key } });
 }
+
+// Radix radio groups (the provider picker) measure their items; jsdom has no ResizeObserver.
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
 
 afterEach(cleanup);
 

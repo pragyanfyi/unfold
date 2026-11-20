@@ -40,9 +40,7 @@ test.beforeEach(async ({ page }) => {
 test("a new user: idea, sign in, key, and the interview starts", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Think an idea all the way through")).toBeVisible();
-  await expect(
-    page.getByText(/sign in with Google, then add your own Anthropic API key/),
-  ).toBeVisible();
+  await expect(page.getByText(/sign in with Google, then add your own API key/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expectNoViolations(page);
 

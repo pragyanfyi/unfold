@@ -27,13 +27,13 @@ async function settled(dialog: Locator) {
 }
 
 async function saveKey(page: Page) {
-  await page.getByRole("button", { name: "Add Anthropic API key" }).click();
+  await page.getByRole("button", { name: "Add your API key" }).click();
   const dialog = page.getByRole("dialog");
   await settled(dialog);
   await expectNoViolations(page);
   await dialog.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);
   await dialog.getByRole("button", { name: "Save key" }).click();
-  await expect(page.getByText("Unfold needs your own Anthropic API key.")).toBeHidden();
+  await expect(page.getByText("Unfold needs your own API key")).toBeHidden();
 }
 
 async function answerFirstRound(page: Page) {
