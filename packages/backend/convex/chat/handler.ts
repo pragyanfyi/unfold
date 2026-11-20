@@ -34,6 +34,12 @@ export const MAX_BODY_BYTES = 1_000_000;
 export const MAX_MESSAGES = 400;
 export const MAX_KEY_LENGTH = 512;
 
+// How long the model may go without sending anything, before its first chunk or between two.
+// A provider under load can accept the request and then say nothing (seen with Gemini): without
+// a limit the turn waits forever and the user sees "Thinking" with no way out but a reload.
+export const MODEL_IDLE_TIMEOUT_MS = 60_000;
+export const MODEL_TIMEOUT_MESSAGE = "The model did not respond in time. Try again in a moment.";
+
 /**
  * One run's hold on an idea's turn document (ADR 0015). The action builds it from its Convex
  * context; tests pass a fake. No method takes the key: it never leaves this module's request.
@@ -71,6 +77,8 @@ export type ChatDeps = {
   /** Builds the provider adapter from the user's key. Tests pass a fake here. */
   createAdapter?: (provider: ProviderId, key: string) => AnyTextAdapter;
   log?: SafeLogger;
+  /** Overrides MODEL_IDLE_TIMEOUT_MS. Tests pass a short one. */
+  idleTimeoutMs?: number;
 };
 
 function defaultCreateAdapter(provider: ProviderId, key: string): AnyTextAdapter {
@@ -116,6 +124,32 @@ async function* scrubErrors(
     // A thrown error is turned into a RUN_ERROR by the response writer, with its message.
     // Rethrow a fresh error with only a scrubbed message: no stack, cause or attached headers.
     throw new Error(maskText(error instanceof Error ? error.message : "Chat failed", secrets));
+  }
+}
+
+// Fails the run when the model sends nothing for `ms`, and stops the model call. Pulled by
+// hand, not with `for await`, so a stalled `next()` can lose a race with the timer.
+async function* withIdleTimeout(
+  stream: AsyncIterable<StreamChunk>,
+  ms: number,
+  abortController: AbortController,
+  log: SafeLogger,
+): AsyncGenerator<StreamChunk> {
+  const source = stream[Symbol.asyncIterator]();
+  for (;;) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), ms);
+    });
+    const next = await Promise.race([source.next(), timedOut]).finally(() => clearTimeout(timer));
+    if (next === "timeout") {
+      log("chat.model_timeout", { afterMs: ms });
+      abortController.abort();
+      // The stalled `next()` is left behind: the abort ends the provider's request.
+      throw new Error(MODEL_TIMEOUT_MESSAGE);
+    }
+    if (next.done) return;
+    yield next.value;
   }
 }
 
@@ -246,7 +280,13 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
   }
 
   log("chat.request", { provider: requested, messages: params.messages.length }, [key]);
-  const scrubbed = scrubErrors(stream, [key]);
+  const timed = withIdleTimeout(
+    stream,
+    deps.idleTimeoutMs ?? MODEL_IDLE_TIMEOUT_MS,
+    abortController,
+    log,
+  );
+  const scrubbed = scrubErrors(timed, [key]);
   const out = turnRun ? recordRun(scrubbed, turnRun, abortController, log, [key]) : scrubbed;
   return toServerSentEventsResponse(out);
 }

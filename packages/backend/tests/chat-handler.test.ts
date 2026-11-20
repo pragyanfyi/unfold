@@ -1,6 +1,11 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleChatRequest, MAX_BODY_BYTES, MAX_MESSAGES } from "../convex/chat/handler";
+import {
+  handleChatRequest,
+  MAX_BODY_BYTES,
+  MAX_MESSAGES,
+  MODEL_TIMEOUT_MESSAGE,
+} from "../convex/chat/handler";
 import { maskText } from "../convex/chat/safeLog";
 
 // Obviously fake. It is long and unusual enough to be found anywhere it leaks.
@@ -219,6 +224,84 @@ describe("chat route: interview protocol", () => {
     });
     await res.text();
     expect(toolNames.sort()).toEqual(["ask_round", "propose_finish"]);
+  });
+});
+
+describe("chat route: a model that stops sending", () => {
+  // A provider under load can accept the request and then send nothing (seen with Gemini).
+  // These wrap the fake's stream to stall it, or slow it down, at a chosen point.
+  type Adapter = ReturnType<typeof fakeText>;
+  const never = () => new Promise<never>(() => {});
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function stalled(afterChunks: number): Adapter {
+    const fake = fakeText();
+    fake.setResponses([{ text: "Let me think about that." }]);
+    const original = fake.chatStream.bind(fake);
+    fake.chatStream = async function* (options) {
+      let sent = 0;
+      for await (const chunk of original(options)) {
+        if (sent++ >= afterChunks) await never();
+        yield chunk;
+      }
+      await never();
+    };
+    return fake;
+  }
+
+  it("ends with an error when the model sends nothing at all", async () => {
+    const res = await handleChatRequest(post(body(), withKey), {
+      createAdapter: () => stalled(0),
+      idleTimeoutMs: 50,
+    });
+    const text = await res.text();
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+  });
+
+  it("ends with an error when the model stalls partway through a reply", async () => {
+    const res = await handleChatRequest(post(body(), withKey), {
+      createAdapter: () => stalled(2),
+      idleTimeoutMs: 50,
+    });
+    const text = await res.text();
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+  });
+
+  it("logs the timeout as an event, without the key or the conversation", async () => {
+    const lines: string[] = [];
+    const log = vi.fn((event: string, fields?: Record<string, unknown>) => {
+      lines.push(JSON.stringify({ event, ...fields }));
+    });
+    const res = await handleChatRequest(post(body(), withKey), {
+      createAdapter: () => stalled(0),
+      idleTimeoutMs: 50,
+      log,
+    });
+    await res.text();
+    expect(lines.some((line) => line.includes('"event":"chat.model_timeout"'))).toBe(true);
+    expect(lines.join("\n")).not.toContain(SENTINEL_KEY);
+    expect(lines.join("\n")).not.toContain("plans picnics");
+  });
+
+  it("does not cut off a model that is slow but keeps sending", async () => {
+    const fake = fakeText();
+    fake.setResponses([{ text: "A slow but steady reply." }]);
+    const original = fake.chatStream.bind(fake);
+    fake.chatStream = async function* (options) {
+      for await (const chunk of original(options)) {
+        await sleep(20);
+        yield chunk;
+      }
+    };
+    const res = await handleChatRequest(post(body(), withKey), {
+      createAdapter: () => fake,
+      idleTimeoutMs: 100,
+    });
+    const text = await res.text();
+    expect(text).not.toContain("RUN_ERROR");
+    expect(text).toContain("RUN_FINISHED");
   });
 });
 

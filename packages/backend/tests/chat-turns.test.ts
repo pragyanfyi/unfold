@@ -142,6 +142,43 @@ describe("chat turns", () => {
     expect(calls.map((c) => c.method)).not.toContain("end");
   });
 
+  it("interrupts, and never ends, a run whose model goes silent", async () => {
+    const { calls, startTurn } = fakeTurn();
+    const adapter = fakeText();
+    adapter.chatStream = async function* () {
+      await new Promise<never>(() => {});
+    };
+    const response = await handleChatRequest(post(), {
+      createAdapter: () => adapter,
+      startTurn,
+      idleTimeoutMs: 50,
+    });
+    expect(await drain(response)).toContain("RUN_ERROR");
+    expect(calls.map((c) => c.method)).toContain("interrupt");
+    expect(calls.map((c) => c.method)).not.toContain("end");
+  });
+
+  it("interrupts a silent run even after the browser has left", async () => {
+    const { calls, startTurn } = fakeTurn();
+    const adapter = fakeText();
+    adapter.setResponses([{ text: "Starting, then nothing." }]);
+    const original = adapter.chatStream.bind(adapter);
+    adapter.chatStream = async function* (options) {
+      for await (const chunk of original(options)) yield chunk;
+      await new Promise<never>(() => {});
+    };
+    const response = await handleChatRequest(post(), {
+      createAdapter: () => adapter,
+      startTurn,
+      idleTimeoutMs: 50,
+    });
+    const reader = response.body?.getReader();
+    await reader?.read();
+    await reader?.cancel();
+    await vi.waitFor(() => expect(calls.some((c) => c.method === "interrupt")).toBe(true));
+    expect(calls.map((c) => c.method)).not.toContain("end");
+  });
+
   it("interrupts a run whose turn was taken or stopped, and stops asking the model", async () => {
     const { calls, startTurn } = fakeTurn({ write: async () => false });
     const adapter = fakeText();
