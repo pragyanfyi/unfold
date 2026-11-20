@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/pragyanfyi/unfold/compare/v0.7.0...v0.8.0) (2026-11-20)
+
+
+### Features
+
+* **ai:** add Google Gemini as a second provider, one key at a time ([#91](https://github.com/pragyanfyi/unfold/issues/91)) ([8fccab0](https://github.com/pragyanfyi/unfold/commit/8fccab0766313a19a2c5ea60e3f281f3b40a6f3f))
+* **web:** let the user replace or remove a saved API key ([#89](https://github.com/pragyanfyi/unfold/issues/89)) ([c083c0d](https://github.com/pragyanfyi/unfold/commit/c083c0dd213daab92ae0f62029c343218a51bbde))
+
 ## [0.7.0](https://github.com/pragyanfyi/unfold/compare/v0.6.0...v0.7.0) (2026-11-19)
 
 
