@@ -77,8 +77,6 @@ export type ChatDeps = {
   /** Builds the provider adapter from the user's key. Tests pass a fake here. */
   createAdapter?: (provider: ProviderId, key: string) => AnyTextAdapter;
   log?: SafeLogger;
-  /** Overrides MODEL_IDLE_TIMEOUT_MS. Tests pass a short one. */
-  idleTimeoutMs?: number;
 };
 
 function defaultCreateAdapter(provider: ProviderId, key: string): AnyTextAdapter {
@@ -280,12 +278,7 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
   }
 
   log("chat.request", { provider: requested, messages: params.messages.length }, [key]);
-  const timed = withIdleTimeout(
-    stream,
-    deps.idleTimeoutMs ?? MODEL_IDLE_TIMEOUT_MS,
-    abortController,
-    log,
-  );
+  const timed = withIdleTimeout(stream, MODEL_IDLE_TIMEOUT_MS, abortController, log);
   const scrubbed = scrubErrors(timed, [key]);
   const out = turnRun ? recordRun(scrubbed, turnRun, abortController, log, [key]) : scrubbed;
   return toServerSentEventsResponse(out);
