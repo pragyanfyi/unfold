@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/pragyanfyi/unfold/compare/v0.8.0...v0.8.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **chat:** end a turn with an error when the model goes silent ([#92](https://github.com/pragyanfyi/unfold/issues/92)) ([cf525b6](https://github.com/pragyanfyi/unfold/commit/cf525b69ac3245b1999a42ee25bc138d24727620))
+* **chat:** show provider errors as one plain sentence that names the model ([#94](https://github.com/pragyanfyi/unfold/issues/94)) ([35990ab](https://github.com/pragyanfyi/unfold/commit/35990ab958f95892f1273d9516e8201f66bea648))
+
 ## [0.8.0](https://github.com/pragyanfyi/unfold/compare/v0.7.0...v0.8.0) (2026-11-20)
 
 
