@@ -84,10 +84,14 @@ export function KeyDialog({
   }
 
   async function remove(provider: ProviderId) {
+    // With two keys, a key stays after this removal, so the effect above does not run; the
+    // pressed button still goes away, so focus moves to the key field here.
+    const othersRemain = stored.length > 1;
     setBusy(true);
     setError(null);
     try {
       await byok.clear(provider);
+      if (othersRemain) input.current?.focus();
     } catch {
       setError("Your key could not be removed. Try again.");
     } finally {

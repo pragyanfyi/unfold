@@ -135,8 +135,11 @@ describe("KeyDialog", () => {
     expect(screen.getByRole("button", { name: "Remove Anthropic key" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove Google Gemini key" }));
     await waitFor(() => expect(byok.keys()).toEqual({ anthropic: FAKE_KEY }));
-    // One key again: one plain Remove button.
+    // One key again: one plain Remove button, the warning is gone, and focus is on the key field
+    // rather than lost with the button that was pressed.
     expect(await screen.findByRole("button", { name: "Remove key" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText("API key"));
   });
 
   it("keeps Remove and Unlock disabled while a new key is being saved", async () => {

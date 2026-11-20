@@ -39,14 +39,27 @@ export function KeyForm({
   inputRef?: Ref<HTMLInputElement>;
 }) {
   const id = useId();
-  const saved = savedKey(useByok(byok));
+  const snapshot = useByok(byok);
+  const saved = savedKey(snapshot);
   // Starts on the saved key's provider, so replacing a key keeps its provider unless changed.
   const [provider, setProvider] = useState<ProviderId>(saved?.provider ?? PROVIDER_IDS[0]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const shown = error ?? message ?? null;
-  const label = PROVIDERS[provider].label;
+  // A new key that was saved, and the old keys that could not then be removed. The warning lasts
+  // only while one of those is still stored: removing it in the key dialog clears it.
+  const [cleanup, setCleanup] = useState<{ saved: ProviderId; left: ProviderId[] } | null>(null);
+  const leftover = cleanup?.left.filter((other) => {
+    const state = snapshot.status[other]?.state;
+    return state === "set" || state === "locked";
+  });
+  const cleanupWarning =
+    cleanup && leftover && leftover.length > 0
+      ? `Your ${PROVIDERS[cleanup.saved].label} key was saved, but your ${leftover
+          .map((other) => PROVIDERS[other].label)
+          .join(" and ")} key could not be removed. Remove it before you chat.`
+      : null;
+  const shown = error ?? cleanupWarning ?? message ?? null;
 
   // The passkey prompt needs a direct user gesture on some browsers (ADR 0003), so the handler
   // calls the library before awaiting anything else.
@@ -54,6 +67,7 @@ export function KeyForm({
     setBusy(true);
     onBusyChange?.(true);
     setError(null);
+    setCleanup(null);
     try {
       try {
         await byok.update(provider, draft);
@@ -73,10 +87,7 @@ export function KeyForm({
       } catch {
         // Two keys are stored; the key dialog then shows a Remove button for each. Fixed text:
         // never the raw error.
-        const otherLabels = others.map((other) => PROVIDERS[other].label).join(" and ");
-        setError(
-          `Your ${label} key was saved, but your ${otherLabels} key could not be removed. Remove it before you chat.`,
-        );
+        setCleanup({ saved: provider, left: others });
         return;
       }
       onSaved?.();

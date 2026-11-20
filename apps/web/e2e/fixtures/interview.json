@@ -118,7 +118,16 @@
     {
       "match": {
         "userMessage": "E2E-IDEA-JOURNEY",
-        "toolResultContains": "confirmed"
+        "toolResultContains": "confirmed\":true"
+      },
+      "response": {
+        "content": "Glad we reached a shared understanding."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "E2E-IDEA-JOURNEY",
+        "toolResultContains": "confirmed\\\":true"
       },
       "response": {
         "content": "Glad we reached a shared understanding."

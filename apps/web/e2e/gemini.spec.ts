@@ -45,7 +45,7 @@ test("runs the interview with a Gemini key: rounds, then the finish proposal", a
 
   // `propose_finish` arrived as a Gemini function call; confirming sends its result back. The
   // adapter wraps a tool result as `{ content: "<json>" }`, so aimock sees its quotes escaped:
-  // the fixture matches on the bare word `confirmed`, which both wire formats contain.
+  // the fixtures have a second match for `confirmed\":true`, still only a true confirmation.
   await expect(page.getByText("Is this a shared understanding?")).toBeVisible();
   await page.getByRole("button", { name: "Looks right" }).click();
   await expect(page.getByText("Glad we reached a shared understanding.")).toBeVisible();
