@@ -50,7 +50,7 @@ export function OnboardingDialog({
             {step === 1
               ? "Unfold needs you to sign in before your first interview. Google is the only way to sign in."
               : step === 2
-                ? "Unfold uses your own API key, from Anthropic or Google Gemini. It stays in this browser and is never stored by Unfold."
+                ? "Unfold uses your own API key, from Anthropic or Google Gemini. It is saved only in this browser. Unfold's server passes it to the provider with each request and never stores it."
                 : "Starting your interview."}
           </DialogDescription>
         </DialogHeader>

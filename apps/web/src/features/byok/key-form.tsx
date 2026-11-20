@@ -71,9 +71,11 @@ export function KeyForm({
       try {
         for (const other of others) await byok.clear(other);
       } catch {
-        // Two keys are stored. Fixed text: never the raw error.
+        // Two keys are stored; the key dialog then shows a Remove button for each. Fixed text:
+        // never the raw error.
+        const otherLabels = others.map((other) => PROVIDERS[other].label).join(" and ");
         setError(
-          `Your ${label} key was saved, but your other key could not be removed. Remove it, then try again.`,
+          `Your ${label} key was saved, but your ${otherLabels} key could not be removed. Remove it before you chat.`,
         );
         return;
       }

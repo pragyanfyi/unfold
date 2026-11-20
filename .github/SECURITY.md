@@ -28,7 +28,7 @@ In scope: the Unfold web application and code in this repository. Out of scope: 
 
 ## How API keys are handled (bring your own key)
 
-Unfold has no AI gateway. You supply your own provider API key. Unfold uses the [TanStack AI BYOK](https://tanstack.com/ai/latest/docs/advanced/byok) mechanism. Anthropic and Google Gemini keys are supported, one key at a time: saving a key for one provider removes the other. How it works:
+Unfold has no AI gateway. You supply your own provider API key. Unfold uses the [TanStack AI BYOK](https://tanstack.com/ai/latest/docs/advanced/byok) mechanism. Anthropic and Google Gemini keys are supported, one key at a time: saving a key for one provider removes the other, after the new key is saved. If that removal fails, both keys stay in your browser: Unfold tells you, sends requests with only one of them, and shows a Remove button for each so you can remove the old one. How it works:
 
 - **Storage:** the key is kept in your browser only. When your browser supports passkeys, it is stored encrypted with a passkey. When passkeys are unavailable, it is held in memory for the current tab and is gone when you close it. If passkeys are available but your authenticator does not support the required PRF extension, saving the key fails; Unfold tells you so and does not keep the key any other way.
 - **Never persisted by us:** Unfold's database (Convex) and logs do not store provider keys. Unfold's hosting provider, Convex, runs the backend that the key passes through; we have not verified what its own logs record about requests.

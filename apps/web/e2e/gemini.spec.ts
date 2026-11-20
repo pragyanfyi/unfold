@@ -2,16 +2,15 @@ import { expect, test } from "@playwright/test";
 import { addPasskeyAuthenticator, signIn } from "./support";
 
 // The interview on Google Gemini (#48). The real Gemini adapter runs in the local Convex
-// backend and talks to aimock's Gemini endpoint, so the interview tools (`ask_round`, and the
-// answers as a tool result) make the round trip in Gemini's own wire format. It reuses the
+// backend and talks to aimock's Gemini endpoint, so the interview tools (`ask_round`,
+// `propose_finish`, and the answers and the confirmation as tool results) make the round trip in
+// Gemini's own wire format. It reuses the
 // E2E-IDEA-JOURNEY fixtures, which aimock serves in every provider's format.
 const GEMINI_KEY = "AIzaFAKE-E2E-GEMINI-KEY-000000000000000";
 
 test.use({ reducedMotion: "reduce" });
 
-test("runs the interview with a Gemini key, and the Anthropic key it replaced is gone", async ({
-  page,
-}) => {
+test("runs the interview with a Gemini key: rounds, then the finish proposal", async ({ page }) => {
   await addPasskeyAuthenticator(page);
   await signIn(page);
   await page.goto("/");
@@ -40,4 +39,15 @@ test("runs the interview with a Gemini key, and the Anthropic key it replaced is
 
   // The answers went back as a Gemini function response, and round 2 came from it.
   await expect(round.getByText("How will it make money?")).toBeVisible();
+  await round.getByRole("radio", { name: /A\s*Subscription/ }).click();
+  await round.getByRole("textbox", { name: /Your own answer or a note/ }).fill("E2E-NOTE-ROUND-2");
+  await round.getByRole("button", { name: "Submit answers" }).click();
+
+  // `propose_finish` arrived as a Gemini function call; confirming sends its result back. The
+  // adapter wraps a tool result as `{ content: "<json>" }`, so aimock sees its quotes escaped:
+  // the fixture matches on the bare word `confirmed`, which both wire formats contain.
+  await expect(page.getByText("Is this a shared understanding?")).toBeVisible();
+  await page.getByRole("button", { name: "Looks right" }).click();
+  await expect(page.getByText("Glad we reached a shared understanding.")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });

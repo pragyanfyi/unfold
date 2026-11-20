@@ -81,6 +81,7 @@ describe("chat route: Gemini (#48)", () => {
     });
     await res.text();
     expect(createAdapter).toHaveBeenCalledExactlyOnceWith("gemini", GEMINI_SENTINEL_KEY);
+    expect(fake.pendingResponses()).toBe(0);
   });
 
   it("reads only the chosen provider's header: an Anthropic key is not used for Gemini", async () => {

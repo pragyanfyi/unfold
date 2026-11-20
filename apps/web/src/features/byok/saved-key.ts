@@ -10,7 +10,7 @@ export type SavedKey = {
 // The user keeps one key at a time (#48), so its provider is the one the interview uses. A
 // failed save leaves an "error" status, but that key was not stored, so it does not count. If
 // two keys are ever stored (a removal failed after a save), the first in PROVIDERS order wins,
-// and the client and the server both use that one.
+// and the client and the server both use that one. The key dialog then offers to remove each.
 export function savedKey(snapshot: ByokSnapshot): SavedKey | undefined {
   for (const provider of PROVIDER_IDS) {
     const status = snapshot.status[provider];

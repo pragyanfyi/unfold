@@ -110,6 +110,35 @@ describe("KeyDialog", () => {
     await waitFor(() => expect(byok.keys()).toEqual({}));
   });
 
+  it("after a replacement whose cleanup failed, removes the old provider's key, not the new one", async () => {
+    let saves = 0;
+    const byok = defineByok({
+      storage: storage({
+        save: () => {
+          saves += 1;
+          // Save 1 stores the Gemini key, save 2 the Anthropic key; removing Gemini (save 3)
+          // fails once, then works.
+          if (saves === 3) throw new Error("storage failed");
+        },
+      }),
+    });
+    await byok.update("gemini", "AIzaFAKE-DIALOG-GEMINI-KEY-0123456789ab");
+    render(<KeyDialog byok={byok} />);
+    fireEvent.click(screen.getByRole("button", { name: /google gemini key:/i }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Anthropic" }));
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: FAKE_KEY } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /your Google Gemini key could not be removed/,
+    );
+    // Both keys are stored, and each has its own button.
+    expect(screen.getByRole("button", { name: "Remove Anthropic key" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Google Gemini key" }));
+    await waitFor(() => expect(byok.keys()).toEqual({ anthropic: FAKE_KEY }));
+    // One key again: one plain Remove button.
+    expect(await screen.findByRole("button", { name: "Remove key" })).toBeTruthy();
+  });
+
   it("keeps Remove and Unlock disabled while a new key is being saved", async () => {
     let finish = () => {};
     const saves: unknown[] = [];

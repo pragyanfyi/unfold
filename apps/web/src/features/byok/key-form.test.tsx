@@ -124,7 +124,9 @@ describe("KeyForm: providers (#48)", () => {
     pick("Google Gemini");
     typeAndSave(GEMINI_KEY);
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/Google Gemini key was saved, but your other key could not/);
+    expect(alert.textContent).toMatch(
+      /Google Gemini key was saved, but your Anthropic key could not be removed/,
+    );
     expect(alert.textContent).not.toContain("storage failed");
     expect(onSaved).not.toHaveBeenCalled();
   });

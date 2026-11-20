@@ -118,7 +118,7 @@
     {
       "match": {
         "userMessage": "E2E-IDEA-JOURNEY",
-        "toolResultContains": "confirmed\":true"
+        "toolResultContains": "confirmed"
       },
       "response": {
         "content": "Glad we reached a shared understanding."

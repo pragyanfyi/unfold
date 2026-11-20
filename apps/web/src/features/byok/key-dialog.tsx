@@ -1,5 +1,5 @@
 import { useByok } from "@tanstack/ai-react";
-import { PROVIDERS } from "@unfold/interview/providers";
+import { PROVIDER_IDS, PROVIDERS, type ProviderId } from "@unfold/interview/providers";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -31,8 +31,15 @@ export function KeyDialog({
 }) {
   // The one stored key, of whichever provider (#48). A failed save leaves an "error" status,
   // but that key is NOT stored, so it does not count.
-  const saved = savedKey(useByok(byok));
+  const snapshot = useByok(byok);
+  const saved = savedKey(snapshot);
   const status = saved?.status;
+  // Normally one. Two only when removing the old key failed after a new one was saved: then each
+  // gets its own Remove button, so the user removes the one they mean, not just the one in use.
+  const stored = PROVIDER_IDS.filter((provider) => {
+    const state = snapshot.status[provider]?.state;
+    return state === "set" || state === "locked";
+  });
   const [ownOpen, setOwnOpen] = useState(false);
   const open = controlledOpen ?? ownOpen;
   const setOpen = onControlledOpenChange ?? setOwnOpen;
@@ -76,11 +83,11 @@ export function KeyDialog({
     }
   }
 
-  async function remove() {
+  async function remove(provider: ProviderId) {
     setBusy(true);
     setError(null);
     try {
-      if (saved) await byok.clear(saved.provider);
+      await byok.clear(provider);
     } catch {
       setError("Your key could not be removed. Try again.");
     } finally {
@@ -103,8 +110,8 @@ export function KeyDialog({
         <DialogHeader>
           <DialogTitle>Your API key</DialogTitle>
           <DialogDescription>
-            Your key stays in this browser. Unfold's server sees it with each request because it
-            forwards the request to the provider, but never stores or logs it.{" "}
+            Your key is saved only in this browser. Unfold's server sees it with each request
+            because it forwards the request to the provider, but never stores or logs it.{" "}
             {byok.storage.persistent
               ? "It is saved encrypted with a passkey."
               : "It is kept in memory for this tab only and is gone when you close it."}{" "}
@@ -133,16 +140,17 @@ export function KeyDialog({
                   Unlock saved key
                 </Button>
               ) : null}
-              {status ? (
+              {stored.map((provider) => (
                 <Button
+                  key={provider}
                   type="button"
                   variant="outline"
                   disabled={busy || saving}
-                  onClick={() => void remove()}
+                  onClick={() => void remove(provider)}
                 >
-                  Remove key
+                  {stored.length > 1 ? `Remove ${PROVIDERS[provider].label} key` : "Remove key"}
                 </Button>
-              ) : null}
+              ))}
             </>
           }
         />
