@@ -1,6 +1,12 @@
 import { fakeText } from "@tanstack/ai/testing";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleChatRequest, MAX_BODY_BYTES, MAX_MESSAGES } from "../convex/chat/handler";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  handleChatRequest,
+  MAX_BODY_BYTES,
+  MAX_MESSAGES,
+  MODEL_IDLE_TIMEOUT_MS,
+  MODEL_TIMEOUT_MESSAGE,
+} from "../convex/chat/handler";
 import { maskText } from "../convex/chat/safeLog";
 
 // Obviously fake. It is long and unusual enough to be found anywhere it leaks.
@@ -222,6 +228,74 @@ describe("chat route: interview protocol", () => {
   });
 });
 
+describe("chat route: a model that stops sending", () => {
+  // A provider under load can accept the request and then send nothing (seen with Gemini).
+  // These wrap the fake's stream to stall it, or slow it down, at a chosen point. Time is fake:
+  // the tests move the clock past the real limit instead of waiting.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function stalled(afterChunks: number) {
+    const fake = fakeText();
+    fake.setResponses([{ text: "Let me think about that." }]);
+    const original = fake.chatStream.bind(fake);
+    fake.chatStream = async function* (options) {
+      let sent = 0;
+      for await (const chunk of original(options)) {
+        if (sent++ >= afterChunks) await new Promise<never>(() => {});
+        yield chunk;
+      }
+      await new Promise<never>(() => {});
+    };
+    return fake;
+  }
+
+  async function runFor(adapter: ReturnType<typeof fakeText>, ms: number) {
+    const pending = handleChatRequest(post(body(), withKey), { createAdapter: () => adapter }).then(
+      (res) => res.text(),
+    );
+    await vi.advanceTimersByTimeAsync(ms);
+    return pending;
+  }
+
+  it("ends with an error when the model sends nothing at all", async () => {
+    const adapter = stalled(0);
+    const text = await runFor(adapter, MODEL_IDLE_TIMEOUT_MS);
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+    expect(adapter.pendingResponses()).toBe(0);
+  });
+
+  it("ends with an error when the model stalls partway through a reply", async () => {
+    const adapter = stalled(2);
+    const text = await runFor(adapter, MODEL_IDLE_TIMEOUT_MS);
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+    expect(adapter.pendingResponses()).toBe(0);
+  });
+
+  it("does not cut off a model that is slow but keeps sending", async () => {
+    const fake = fakeText();
+    fake.setResponses([{ text: "A slow but steady reply." }]);
+    const original = fake.chatStream.bind(fake);
+    fake.chatStream = async function* (options) {
+      for await (const chunk of original(options)) {
+        // Each gap is just under the limit; together they are far over it.
+        await new Promise((resolve) => setTimeout(resolve, MODEL_IDLE_TIMEOUT_MS - 1_000));
+        yield chunk;
+      }
+    };
+    const text = await runFor(fake, MODEL_IDLE_TIMEOUT_MS * 30);
+    expect(text).not.toContain("RUN_ERROR");
+    expect(text).toContain("RUN_FINISHED");
+    expect(fake.pendingResponses()).toBe(0);
+  });
+});
+
 describe("chat route: tree outline (ADR 0012)", () => {
   // Unusual enough to be found anywhere it leaks.
   const OUTLINE_SENTINEL = "OUTLINE-SENTINEL-picnic-decision";
@@ -370,6 +444,35 @@ describe("chat route: key-leak check (ADR 0003, item 6)", () => {
     for (const { res, text } of results) {
       expect(text).not.toContain(SENTINEL_KEY);
       expect([...res.headers.values()].join("\n")).not.toContain(SENTINEL_KEY);
+    }
+  });
+
+  it("never writes the key to logs when the model goes silent", async () => {
+    vi.useFakeTimers();
+    try {
+      const lines = captureOutput();
+      const fake = fakeText();
+      fake.setResponses([{ text: "Starting, then nothing." }]);
+      const original = fake.chatStream.bind(fake);
+      fake.chatStream = async function* (options) {
+        for await (const chunk of original(options)) yield chunk;
+        await new Promise<never>(() => {});
+      };
+      // Read while the clock moves: the stream only runs while someone reads it.
+      const pending = handleChatRequest(post(body(), withKey), { createAdapter: () => fake }).then(
+        async (res) => ({ res, text: await res.text() }),
+      );
+      await vi.advanceTimersByTimeAsync(MODEL_IDLE_TIMEOUT_MS);
+      const { res, text } = await pending;
+      expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+      // The default logger wrote the timeout event, so the capture covers this path.
+      expect(lines.some((line) => line.includes('"event":"chat.model_timeout"'))).toBe(true);
+      expect(lines.join("\n")).not.toContain(SENTINEL_KEY);
+      expect(text).not.toContain(SENTINEL_KEY);
+      expect([...res.headers.values()].join("\n")).not.toContain(SENTINEL_KEY);
+      expect(fake.pendingResponses()).toBe(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

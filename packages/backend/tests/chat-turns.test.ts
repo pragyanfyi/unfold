@@ -1,6 +1,11 @@
 import { fakeText } from "@tanstack/ai/testing";
 import { describe, expect, it, vi } from "vitest";
-import { handleChatRequest, type StartTurn, type TurnRun } from "../convex/chat/handler";
+import {
+  handleChatRequest,
+  MODEL_IDLE_TIMEOUT_MS,
+  type StartTurn,
+  type TurnRun,
+} from "../convex/chat/handler";
 
 // The handler records each run in the idea's turn document (ADR 0015). These tests give it a fake
 // turn and check what it writes, and what it never writes.
@@ -140,6 +145,60 @@ describe("chat turns", () => {
     await drain(await handleChatRequest(post(), { createAdapter: () => adapter, startTurn }));
     expect(calls.map((c) => c.method)).toContain("interrupt");
     expect(calls.map((c) => c.method)).not.toContain("end");
+  });
+
+  it("interrupts, and never ends, a run whose model goes silent", async () => {
+    vi.useFakeTimers();
+    try {
+      const { calls, startTurn } = fakeTurn();
+      const adapter = fakeText();
+      adapter.chatStream = async function* () {
+        await new Promise<never>(() => {});
+      };
+      const pending = handleChatRequest(post(), { createAdapter: () => adapter, startTurn }).then(
+        drain,
+      );
+      await vi.advanceTimersByTimeAsync(MODEL_IDLE_TIMEOUT_MS);
+      expect(await pending).toContain("RUN_ERROR");
+      expect(calls.map((c) => c.method)).toContain("interrupt");
+      expect(calls.map((c) => c.method)).not.toContain("end");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("interrupts a silent run even after the browser has left", async () => {
+    vi.useFakeTimers();
+    try {
+      const { calls, startTurn } = fakeTurn();
+      const adapter = fakeText();
+      adapter.setResponses([{ text: "Starting, then nothing." }]);
+      const original = adapter.chatStream.bind(adapter);
+      adapter.chatStream = async function* (options) {
+        for await (const chunk of original(options)) yield chunk;
+        await new Promise<never>(() => {});
+      };
+      const response = await handleChatRequest(post(), {
+        createAdapter: () => adapter,
+        startTurn,
+      });
+      // The browser reads one chunk and leaves, well before the limit.
+      const reader = response.body?.getReader();
+      const first = reader?.read();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await first;
+      // Not awaited yet: leaving resolves only once the run it leaves behind is over.
+      const left = reader?.cancel();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls.map((c) => c.method)).not.toContain("interrupt");
+      await vi.advanceTimersByTimeAsync(MODEL_IDLE_TIMEOUT_MS);
+      await left;
+      expect(calls.map((c) => c.method)).toContain("interrupt");
+      expect(calls.map((c) => c.method)).not.toContain("end");
+      expect(adapter.pendingResponses()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("interrupts a run whose turn was taken or stopped, and stops asking the model", async () => {
