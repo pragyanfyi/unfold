@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as chat_handler from "../chat/handler.js";
+import type * as chat_providerError from "../chat/providerError.js";
 import type * as chat_safeLog from "../chat/safeLog.js";
 import type * as chat_testProviderUrl from "../chat/testProviderUrl.js";
 import type * as http from "../http.js";
@@ -26,6 +27,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "chat/handler": typeof chat_handler;
+  "chat/providerError": typeof chat_providerError;
   "chat/safeLog": typeof chat_safeLog;
   "chat/testProviderUrl": typeof chat_testProviderUrl;
   http: typeof http;
