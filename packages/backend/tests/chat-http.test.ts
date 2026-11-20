@@ -31,7 +31,13 @@ describe("POST /chat: CORS", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe(APP);
     const allowed = (res.headers.get("access-control-allow-headers") ?? "").split(/,\s*/);
     // `x-run-id` is sent by the chat client itself; without it the browser blocks every request.
-    for (const header of ["content-type", "authorization", "x-byok-anthropic", "x-run-id"]) {
+    for (const header of [
+      "content-type",
+      "authorization",
+      "x-byok-anthropic",
+      "x-byok-gemini",
+      "x-run-id",
+    ]) {
       expect(allowed).toContain(header);
     }
     expect(Number(res.headers.get("access-control-max-age"))).toBeGreaterThan(60);

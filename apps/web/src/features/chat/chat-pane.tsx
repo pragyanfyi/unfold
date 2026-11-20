@@ -1,6 +1,5 @@
 import { type UIMessage, useByok } from "@tanstack/ai-react";
 import type { Tree } from "@unfold/interview/derive-tree";
-import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
 import type { FinishDecision } from "@unfold/interview/round-answers";
 import { proposeFinish } from "@unfold/interview/tools";
 import { LoaderCircleIcon } from "lucide-react";
@@ -22,6 +21,7 @@ import { clearPendingIdea, readPendingIdea, savePendingIdea } from "#/features/a
 import { useSession } from "#/features/auth/session";
 import { KeyDialog } from "#/features/byok/key-dialog";
 import { getByok } from "#/features/byok/key-store";
+import { savedKey } from "#/features/byok/saved-key";
 import type { StoredHistory } from "#/features/storage/types";
 import { type RoundDrafts, withDrafts } from "#/features/tree/with-drafts";
 import { parkFocus, rescueFocus } from "#/lib/focus";
@@ -102,8 +102,7 @@ export function ChatPane({
   const selectedNumber =
     selectedNode?.kind === "idea" ? 0 : Number(selectedNode?.id.match(/q(\d+)$/)?.[1] ?? NaN);
   const snapshot = useByok(byok);
-  const keyState = snapshot.status[DEFAULT_PROVIDER]?.state;
-  const hasKey = keyState === "set" || keyState === "locked";
+  const hasKey = savedKey(snapshot) !== undefined;
 
   const [draft, setDraft] = useState("");
   const [keyOpen, setKeyOpen] = useState(false);
@@ -214,7 +213,7 @@ export function ChatPane({
     setDraft(idea);
     if (session.status !== "signed-in") return;
     void byok.ready().then(() => {
-      const state = byok.getSnapshot().status[DEFAULT_PROVIDER]?.state;
+      const state = savedKey(byok.getSnapshot())?.status.state;
       if (state === "set") void start(idea);
       else if (state !== "locked") setOnboardingOpen(true);
     });
@@ -359,7 +358,7 @@ export function ChatPane({
         ) : null}
         {visible.length > 0 || session.status === "loading" ? null : !signedIn ? (
           <p className="text-center text-xs text-muted-foreground">
-            Free to use. You sign in with Google, then add your own Anthropic API key.
+            Free to use. You sign in with Google, then add your own API key.
           </p>
         ) : hasKey ? null : (
           <p className="text-center text-xs text-muted-foreground">

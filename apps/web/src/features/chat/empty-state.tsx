@@ -50,7 +50,8 @@ export function EmptyState({
         {keyControl === null ? null : (
           <div className="flex flex-col items-center gap-2">
             <p className="text-sm text-muted-foreground">
-              Unfold needs your own Anthropic API key. It stays in this browser.
+              Unfold needs your own API key, from Anthropic or Google Gemini. It is saved only in
+              this browser, never by Unfold.
             </p>
             {keyControl}
           </div>

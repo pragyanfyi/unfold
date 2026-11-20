@@ -1,18 +1,22 @@
-import { DEFAULT_PROVIDER } from "@unfold/interview/providers";
+import { useByok } from "@tanstack/ai-react";
+import { PROVIDER_IDS, PROVIDERS, type ProviderId } from "@unfold/interview/providers";
 import { type ReactNode, type Ref, useId, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { DialogFooter } from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "#/components/ui/radio-group";
 import { getByok } from "./key-store";
 import { describeSaveError } from "./save-error";
+import { savedKey } from "./saved-key";
 
-/** Where Anthropic keys are created, linked from wherever a key is asked for (ADR 0016). */
-export const ANTHROPIC_KEYS_URL = "https://console.anthropic.com/settings/keys";
-
-// Entering and saving the provider key, used by the key dialog and the onboarding dialog. The
-// key lives in this component's state only until it is saved, and is never put anywhere else
-// (ADR 0003). A failed save keeps the key in the field and explains why (rule 10).
+// Choosing a provider, then entering and saving its key, used by the key dialog and the
+// onboarding dialog. The key lives in this component's state only until it is saved, and is
+// never put anywhere else (ADR 0003). A failed save keeps the key in the field and explains why
+// (rule 10).
+//
+// One key at a time (#48): once the new key is saved, the other provider's key is removed. The
+// new key is saved first, so a failed save never loses the key the user already had.
 export function KeyForm({
   byok = getByok(),
   onSaved,
@@ -35,10 +39,27 @@ export function KeyForm({
   inputRef?: Ref<HTMLInputElement>;
 }) {
   const id = useId();
+  const snapshot = useByok(byok);
+  const saved = savedKey(snapshot);
+  // Starts on the saved key's provider, so replacing a key keeps its provider unless changed.
+  const [provider, setProvider] = useState<ProviderId>(saved?.provider ?? PROVIDER_IDS[0]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const shown = error ?? message ?? null;
+  // A new key that was saved, and the old keys that could not then be removed. The warning lasts
+  // only while one of those is still stored: removing it in the key dialog clears it.
+  const [cleanup, setCleanup] = useState<{ saved: ProviderId; left: ProviderId[] } | null>(null);
+  const leftover = cleanup?.left.filter((other) => {
+    const state = snapshot.status[other]?.state;
+    return state === "set" || state === "locked";
+  });
+  const cleanupWarning =
+    cleanup && leftover && leftover.length > 0
+      ? `Your ${PROVIDERS[cleanup.saved].label} key was saved, but your ${leftover
+          .map((other) => PROVIDERS[other].label)
+          .join(" and ")} key could not be removed. Remove it before you chat.`
+      : null;
+  const shown = error ?? cleanupWarning ?? message ?? null;
 
   // The passkey prompt needs a direct user gesture on some browsers (ADR 0003), so the handler
   // calls the library before awaiting anything else.
@@ -46,13 +67,30 @@ export function KeyForm({
     setBusy(true);
     onBusyChange?.(true);
     setError(null);
+    setCleanup(null);
     try {
-      await byok.update(DEFAULT_PROVIDER, draft);
+      try {
+        await byok.update(provider, draft);
+      } catch (caught) {
+        // Nothing was stored. The key stays in the field so the user can retry.
+        setError(describeSaveError(caught).message);
+        return;
+      }
       setDraft("");
+      const status = byok.getSnapshot().status;
+      const others = PROVIDER_IDS.filter((other) => {
+        const state = status[other]?.state;
+        return other !== provider && (state === "set" || state === "locked");
+      });
+      try {
+        for (const other of others) await byok.clear(other);
+      } catch {
+        // Two keys are stored; the key dialog then shows a Remove button for each. Fixed text:
+        // never the raw error.
+        setCleanup({ saved: provider, left: others });
+        return;
+      }
       onSaved?.();
-    } catch (caught) {
-      // Nothing was stored. The key stays in the field so the user can retry.
-      setError(describeSaveError(caught).message);
     } finally {
       setBusy(false);
       onBusyChange?.(false);
@@ -67,6 +105,23 @@ export function KeyForm({
         void save();
       }}
     >
+      <RadioGroup
+        aria-label="Provider"
+        value={provider}
+        onValueChange={(value) => setProvider(value as ProviderId)}
+        disabled={busy || disabled}
+        className="flex flex-wrap gap-x-6 gap-y-2"
+      >
+        {PROVIDER_IDS.map((option) => (
+          <div key={option} className="flex items-center gap-2">
+            <RadioGroupItem id={`${id}-${option}`} value={option} />
+            <Label htmlFor={`${id}-${option}`}>{PROVIDERS[option].label}</Label>
+          </div>
+        ))}
+      </RadioGroup>
+      <p className="text-sm text-muted-foreground">
+        <KeysLink provider={provider} />
+      </p>
       <Label htmlFor={`${id}-key`}>API key</Label>
       <Input
         ref={inputRef}
@@ -90,5 +145,20 @@ export function KeyForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/** Where to get a key for `provider`. Opens the provider's console in a new tab. */
+export function KeysLink({ provider }: { provider: ProviderId }) {
+  const { label, keysUrl } = PROVIDERS[provider];
+  return (
+    <a
+      href={keysUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-foreground underline underline-offset-4"
+    >
+      Create a key at {label} (opens in a new tab)
+    </a>
   );
 }

@@ -2,7 +2,7 @@
 import type { KeyringStorage } from "@tanstack/ai-react/byok";
 import { defineByok } from "@tanstack/ai-react/byok";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeSessionProvider, fakeSession } from "#/features/auth/fake-session";
 import type { Session } from "#/features/auth/session";
 import { KeyButton } from "./key-button";
@@ -28,6 +28,16 @@ function renderButton(byok: ReturnType<typeof defineByok>, session: Session = fa
     </FakeSessionProvider>,
   );
 }
+
+// Radix radio groups (the provider picker) measure their items; jsdom has no ResizeObserver.
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
 
 afterEach(cleanup);
 
@@ -63,7 +73,7 @@ describe("KeyButton", () => {
     renderButton(byok);
     fireEvent.click(await screen.findByRole("button", { name: /^API key / }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toMatch(/replaces the one you have/);
+    expect(dialog.textContent).toMatch(/Saving a new key replaces it/);
     fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: SECOND_KEY } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save key" }));
     await waitFor(() => expect(byok.keys()).toEqual({ anthropic: SECOND_KEY }));

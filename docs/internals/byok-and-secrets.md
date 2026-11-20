@@ -4,7 +4,7 @@ Applies to everything that touches API keys, tokens or other credentials. Backgr
 
 ## How it works
 
-Unfold has no AI gateway. Users bring their own provider key (Anthropic only for now). The key is kept in the browser by the TanStack AI keyring (`features/byok/key-store.ts`): passkey-encrypted when supported, tab memory otherwise. On each chat request the client sends it in the `x-byok-anthropic` header, with the user's access token in `Authorization`, to the Convex HTTP action (`packages/backend/convex/http.ts`, handler in `convex/chat/handler.ts`, ADR 0015), which calls the provider and does not store the key. So the key transits our backend but is never persisted by us. The Worker serves pages only. What was verified, and what was not, is in the implementation notes of [ADR 0003](../adr/0003-bring-your-own-key-handling.md).
+Unfold has no AI gateway. Users bring their own provider key, Anthropic or Google Gemini, one at a time (#48; `features/byok/saved-key.ts` decides which is in use). The key is kept in the browser by the TanStack AI keyring (`features/byok/key-store.ts`): passkey-encrypted when supported, tab memory otherwise. On each chat request the client sends it in the `x-byok-<provider>` header (only that provider's), with the user's access token in `Authorization`, to the Convex HTTP action (`packages/backend/convex/http.ts`, handler in `convex/chat/handler.ts`, ADR 0015), which calls the provider and does not store the key. So the key transits our backend but is never persisted by us. The Worker serves pages only. What was verified, and what was not, is in the implementation notes of [ADR 0003](../adr/0003-bring-your-own-key-handling.md).
 
 If you change anything that alters this, update ADR 0003 and `SECURITY.md` in the same PR.
 
@@ -18,6 +18,8 @@ If you change anything that alters this, update ADR 0003 and `SECURITY.md` in th
 - Catch every error in the action and answer a fixed string. Convex returns an uncaught error's message and stack on a development deployment, and `getAuthUserId` throws on a malformed token. Never put conversation text or a provider message in a `ConvexError`'s data.
 - Read the key with `getByokKey(request, "<slug>")` (header only). Never pass a `ByokProvider` descriptor that has `env` names to the server helpers: that turns on the environment fallback.
 - Changing the CSP (`features/security/csp.ts`) needs the key risk in mind: do not add `unsafe-inline` or `unsafe-eval` to `script-src`. `connect-src` is `'self'` plus exactly our own Convex deployment's origins (ADR 0015), which `convexOrigins` takes from `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` at build time. Do not add any other host, and never a wildcard such as `*.convex.cloud`, which would let a script send a key to someone else's deployment.
+
+- Adding a provider: add it to `PROVIDERS` in `@unfold/interview/providers`, its descriptor to `features/byok/key-store.ts`, and its adapter to the factory map in `convex/chat/handler.ts` (a missing adapter is a type error). The CORS allow-list follows `PROVIDERS`. Check how its SDK sends the key (header, not URL) and add its key shape to `KEY_SHAPED` in `safeLog.ts`. Record what was checked in ADR 0003.
 
 ## Rules
 

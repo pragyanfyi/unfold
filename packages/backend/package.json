@@ -14,6 +14,7 @@
     "@convex-dev/auth": "2.0.0",
     "@tanstack/ai": "^1.3.0",
     "@tanstack/ai-anthropic": "^1.1.1",
+    "@tanstack/ai-gemini": "1.2.1",
     "@unfold/interview": "workspace:*",
     "convex": "^1.50.0",
     "zod": "^4.6.7"

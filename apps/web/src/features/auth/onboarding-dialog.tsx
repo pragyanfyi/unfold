@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "#/components/ui/dialog";
-import { KeysLink } from "#/features/byok/key-dialog";
 import { KeyForm } from "#/features/byok/key-form";
 import type { getByok } from "#/features/byok/key-store";
 import { cn } from "#/lib/utils";
@@ -51,7 +50,7 @@ export function OnboardingDialog({
             {step === 1
               ? "Unfold needs you to sign in before your first interview. Google is the only way to sign in."
               : step === 2
-                ? "Unfold uses your own Anthropic API key. It stays in this browser and is never stored by Unfold."
+                ? "Unfold uses your own API key, from Anthropic or Google Gemini. It is saved only in this browser. Unfold's server passes it to the provider with each request and never stores it."
                 : "Starting your interview."}
           </DialogDescription>
         </DialogHeader>
@@ -73,12 +72,7 @@ export function OnboardingDialog({
             Continue with Google
           </Button>
         ) : step === 2 ? (
-          <div className="grid gap-3">
-            <p className="text-sm text-muted-foreground">
-              <KeysLink />
-            </p>
-            <KeyForm byok={byok} onSaved={onKeySaved} onBusyChange={setSaving} />
-          </div>
+          <KeyForm byok={byok} onSaved={onKeySaved} onBusyChange={setSaving} />
         ) : null}
       </DialogContent>
     </Dialog>

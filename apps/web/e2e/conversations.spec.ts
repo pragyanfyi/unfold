@@ -7,10 +7,10 @@ import { addPasskeyAuthenticator, backendAs, FAKE_KEY, signIn } from "./support"
 // new user, so tests do not see each other's ideas.
 
 async function saveKey(page: Page) {
-  await page.getByRole("button", { name: "Add Anthropic API key" }).click();
+  await page.getByRole("button", { name: "Add your API key" }).click();
   await page.getByRole("textbox", { name: "API key" }).fill(FAKE_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
-  await expect(page.getByText("Unfold needs your own Anthropic API key.")).toBeHidden();
+  await expect(page.getByText("Unfold needs your own API key")).toBeHidden();
 }
 
 async function sendIdea(page: Page, idea: string) {
