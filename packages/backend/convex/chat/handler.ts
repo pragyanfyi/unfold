@@ -19,6 +19,7 @@ import {
 import { SYSTEM_PROMPT } from "@unfold/interview/system-prompt";
 import { interviewTools } from "@unfold/interview/tools";
 import { RUN_HEARTBEAT_MS } from "../turns";
+import { modelTimeoutMessage, plainProviderError } from "./providerError";
 import {
   LIBRARY_DEBUG_CATEGORIES,
   libraryLogger,
@@ -38,7 +39,6 @@ export const MAX_KEY_LENGTH = 512;
 // A provider under load can accept the request and then say nothing (seen with Gemini): without
 // a limit the turn waits forever and the user sees "Thinking" with no way out but a reload.
 export const MODEL_IDLE_TIMEOUT_MS = 60_000;
-export const MODEL_TIMEOUT_MESSAGE = "The model did not respond in time. Try again in a moment.";
 
 /**
  * One run's hold on an idea's turn document (ADR 0015). The action builds it from its Convex
@@ -110,18 +110,31 @@ function scrubDeep(value: unknown, secrets: ReadonlyArray<string>): unknown {
   return value;
 }
 
+// Masks keys in every error, then turns a provider's error text into a plain sentence.
 async function* scrubErrors(
   stream: AsyncIterable<StreamChunk>,
   secrets: ReadonlyArray<string>,
+  provider: ProviderId,
 ): AsyncGenerator<StreamChunk> {
   try {
     for await (const chunk of stream) {
-      yield chunk.type === "RUN_ERROR" ? (scrubDeep(chunk, secrets) as StreamChunk) : chunk;
+      if (chunk.type !== "RUN_ERROR") {
+        yield chunk;
+        continue;
+      }
+      const scrubbed = scrubDeep(chunk, secrets) as typeof chunk;
+      const message = plainProviderError(scrubbed.message ?? "", provider);
+      yield {
+        ...scrubbed,
+        message,
+        ...(scrubbed.error ? { error: { ...scrubbed.error, message } } : {}),
+      };
     }
   } catch (error) {
     // A thrown error is turned into a RUN_ERROR by the response writer, with its message.
     // Rethrow a fresh error with only a scrubbed message: no stack, cause or attached headers.
-    throw new Error(maskText(error instanceof Error ? error.message : "Chat failed", secrets));
+    const masked = maskText(error instanceof Error ? error.message : "Chat failed", secrets);
+    throw new Error(plainProviderError(masked, provider));
   }
 }
 
@@ -132,6 +145,7 @@ async function* withIdleTimeout(
   ms: number,
   abortController: AbortController,
   log: SafeLogger,
+  timeoutMessage: string,
 ): AsyncGenerator<StreamChunk> {
   const source = stream[Symbol.asyncIterator]();
   for (;;) {
@@ -144,7 +158,7 @@ async function* withIdleTimeout(
       log("chat.model_timeout", { afterMs: ms });
       abortController.abort();
       // The stalled `next()` is left behind: the abort ends the provider's request.
-      throw new Error(MODEL_TIMEOUT_MESSAGE);
+      throw new Error(timeoutMessage);
     }
     if (next.done) return;
     yield next.value;
@@ -278,8 +292,14 @@ export async function handleChatRequest(request: Request, deps: ChatDeps = {}): 
   }
 
   log("chat.request", { provider: requested, messages: params.messages.length }, [key]);
-  const timed = withIdleTimeout(stream, MODEL_IDLE_TIMEOUT_MS, abortController, log);
-  const scrubbed = scrubErrors(timed, [key]);
+  const timed = withIdleTimeout(
+    stream,
+    MODEL_IDLE_TIMEOUT_MS,
+    abortController,
+    log,
+    modelTimeoutMessage(requested),
+  );
+  const scrubbed = scrubErrors(timed, [key], requested);
   const out = turnRun ? recordRun(scrubbed, turnRun, abortController, log, [key]) : scrubbed;
   return toServerSentEventsResponse(out);
 }

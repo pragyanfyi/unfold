@@ -4,11 +4,14 @@
 export const PROVIDERS = {
   anthropic: {
     label: "Anthropic",
+    // What the user talks to, for sentences such as "Claude is busy right now".
+    modelName: "Claude",
     model: "claude-sonnet-5-5",
     keysUrl: "https://console.anthropic.com/settings/keys",
   },
   gemini: {
     label: "Google Gemini",
+    modelName: "Gemini",
     model: "gemini-3.8-flash",
     keysUrl: "https://aistudio.google.com/app/apikey",
   },

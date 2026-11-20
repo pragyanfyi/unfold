@@ -5,8 +5,8 @@ import {
   MAX_BODY_BYTES,
   MAX_MESSAGES,
   MODEL_IDLE_TIMEOUT_MS,
-  MODEL_TIMEOUT_MESSAGE,
 } from "../convex/chat/handler";
+import { modelTimeoutMessage } from "../convex/chat/providerError";
 import { maskText } from "../convex/chat/safeLog";
 
 // Obviously fake. It is long and unusual enough to be found anywhere it leaks.
@@ -228,6 +228,41 @@ describe("chat route: interview protocol", () => {
   });
 });
 
+describe("chat route: provider errors in plain words", () => {
+  const gemini = body({ forwardedProps: { provider: "gemini" } });
+  const geminiKey = { "x-byok-gemini": GEMINI_SENTINEL_KEY };
+
+  it("turns a Gemini overload into a sentence that names Gemini", async () => {
+    const inner = JSON.stringify(
+      { error: { code: 503, message: "High demand.", status: "UNAVAILABLE" } },
+      null,
+      2,
+    );
+    const fake = fakeText();
+    fake.setResponses([{ error: JSON.stringify({ error: { message: inner, code: 503 } }) }]);
+    const res = await handleChatRequest(post(gemini, geminiKey), { createAdapter: () => fake });
+    const text = await res.text();
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain("Gemini is busy right now. Try again in a moment.");
+    expect(text).not.toContain("UNAVAILABLE");
+    expect(fake.pendingResponses()).toBe(0);
+  });
+
+  it("still masks a key that a provider error quotes", async () => {
+    const fake = fakeText();
+    fake.setResponses([
+      {
+        error: JSON.stringify({ error: { message: `Bad request for ${GEMINI_SENTINEL_KEY}` } }),
+      },
+    ]);
+    const res = await handleChatRequest(post(gemini, geminiKey), { createAdapter: () => fake });
+    const text = await res.text();
+    expect(text).toContain("Bad request for [redacted]");
+    expect(text).not.toContain(GEMINI_SENTINEL_KEY);
+    expect(fake.pendingResponses()).toBe(0);
+  });
+});
+
 describe("chat route: a model that stops sending", () => {
   // A provider under load can accept the request and then send nothing (seen with Gemini).
   // These wrap the fake's stream to stall it, or slow it down, at a chosen point. Time is fake:
@@ -266,7 +301,7 @@ describe("chat route: a model that stops sending", () => {
     const adapter = stalled(0);
     const text = await runFor(adapter, MODEL_IDLE_TIMEOUT_MS);
     expect(text).toContain("RUN_ERROR");
-    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+    expect(text).toContain(modelTimeoutMessage("anthropic"));
     expect(adapter.pendingResponses()).toBe(0);
   });
 
@@ -274,7 +309,7 @@ describe("chat route: a model that stops sending", () => {
     const adapter = stalled(2);
     const text = await runFor(adapter, MODEL_IDLE_TIMEOUT_MS);
     expect(text).toContain("RUN_ERROR");
-    expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+    expect(text).toContain(modelTimeoutMessage("anthropic"));
     expect(adapter.pendingResponses()).toBe(0);
   });
 
@@ -464,7 +499,7 @@ describe("chat route: key-leak check (ADR 0003, item 6)", () => {
       );
       await vi.advanceTimersByTimeAsync(MODEL_IDLE_TIMEOUT_MS);
       const { res, text } = await pending;
-      expect(text).toContain(MODEL_TIMEOUT_MESSAGE);
+      expect(text).toContain(modelTimeoutMessage("anthropic"));
       // The default logger wrote the timeout event, so the capture covers this path.
       expect(lines.some((line) => line.includes('"event":"chat.model_timeout"'))).toBe(true);
       expect(lines.join("\n")).not.toContain(SENTINEL_KEY);
