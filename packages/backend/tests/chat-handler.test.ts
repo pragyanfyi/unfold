@@ -263,6 +263,30 @@ describe("chat route: provider errors in plain words", () => {
   });
 });
 
+describe("chat route: a key rebuilt by decoding a provider error", () => {
+  it("masks a key that a provider error writes with unicode escapes", async () => {
+    // Masking the raw text misses the escaped key; decoding the JSON would bring it back.
+    const escaped = [...GEMINI_SENTINEL_KEY]
+      .map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
+      .join("");
+    const raw = `{"error":{"message":"Bad key ${escaped}"}}`;
+    expect(raw).not.toContain(GEMINI_SENTINEL_KEY);
+    const fake = fakeText();
+    fake.setResponses([{ error: raw }]);
+    const res = await handleChatRequest(
+      post(body({ forwardedProps: { provider: "gemini" } }), {
+        "x-byok-gemini": GEMINI_SENTINEL_KEY,
+      }),
+      { createAdapter: () => fake },
+    );
+    const text = await res.text();
+    expect(text).toContain("RUN_ERROR");
+    expect(text).toContain("Bad key [redacted]");
+    expect(text).not.toContain(GEMINI_SENTINEL_KEY);
+    expect(fake.pendingResponses()).toBe(0);
+  });
+});
+
 describe("chat route: a model that stops sending", () => {
   // A provider under load can accept the request and then send nothing (seen with Gemini).
   // These wrap the fake's stream to stall it, or slow it down, at a chosen point. Time is fake:

@@ -5,7 +5,8 @@ import { PROVIDERS, type ProviderId } from "@unfold/interview/providers";
 // common cases into one plain sentence that names the model, and anything else into the
 // provider's own innermost message, which still tells the user what went wrong.
 //
-// It runs on text the handler has already masked: it never sees a key.
+// It runs on text the handler has already masked, and decoding JSON can undo that (a key
+// written with \u escapes), so the handler masks what this returns again.
 
 type Kind = "overloaded" | "rate_limited" | "bad_key" | "forbidden";
 
@@ -33,7 +34,7 @@ const NAMES: Record<string, Kind> = {
 // Gemini nests its reason seven levels deep (JSON in a string in JSON); this leaves room.
 const MAX_DEPTH = 12;
 
-type Found = { kinds: Kind[]; message: string | null };
+type Found = { kinds: Kind[]; message: string | null; messageDepth: number };
 
 function parseJson(text: string): unknown {
   const start = text.search(/[{[]/);
@@ -46,7 +47,7 @@ function parseJson(text: string): unknown {
 }
 
 // Walks the error, parsing JSON found in strings, and collects what it recognises. The
-// innermost `message` that is not itself JSON wins.
+// innermost `message` that is not itself JSON wins, whatever the order of the keys.
 function inspect(value: unknown, found: Found, depth: number): void {
   if (depth > MAX_DEPTH) return;
   if (typeof value === "string") {
@@ -67,8 +68,14 @@ function inspect(value: unknown, found: Found, depth: number): void {
   }
   if (value === null || typeof value !== "object") return;
   for (const [name, item] of Object.entries(value)) {
-    if (name === "message" && typeof item === "string" && parseJson(item) === undefined) {
+    if (
+      name === "message" &&
+      typeof item === "string" &&
+      depth >= found.messageDepth &&
+      parseJson(item) === undefined
+    ) {
       found.message = item.trim();
+      found.messageDepth = depth;
     }
     if (name === "code" || name === "status" || name === "type" || name === "reason") {
       if (typeof item === "string" && /^\d{3}$/.test(item)) inspect(Number(item), found, depth);
@@ -99,7 +106,7 @@ export function modelTimeoutMessage(provider: ProviderId): string {
 
 /** A plain sentence for a provider error message, naming the provider's model. */
 export function plainProviderError(raw: string, provider: ProviderId): string {
-  const found: Found = { kinds: [], message: null };
+  const found: Found = { kinds: [], message: null, messageDepth: -1 };
   // Anthropic's SDK leads with the HTTP status: "529 {...}".
   const leading = /^\s*(\d{3})\b/.exec(raw);
   if (leading) inspect(Number(leading[1]), found, 0);

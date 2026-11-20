@@ -123,7 +123,8 @@ async function* scrubErrors(
         continue;
       }
       const scrubbed = scrubDeep(chunk, secrets) as typeof chunk;
-      const message = plainProviderError(scrubbed.message ?? "", provider);
+      // Masked again: decoding the provider's JSON can rebuild a key written with escapes.
+      const message = maskText(plainProviderError(scrubbed.message ?? "", provider), secrets);
       yield {
         ...scrubbed,
         message,
@@ -134,7 +135,7 @@ async function* scrubErrors(
     // A thrown error is turned into a RUN_ERROR by the response writer, with its message.
     // Rethrow a fresh error with only a scrubbed message: no stack, cause or attached headers.
     const masked = maskText(error instanceof Error ? error.message : "Chat failed", secrets);
-    throw new Error(plainProviderError(masked, provider));
+    throw new Error(maskText(plainProviderError(masked, provider), secrets));
   }
 }
 

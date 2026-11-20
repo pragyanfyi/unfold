@@ -61,6 +61,13 @@ describe("plainProviderError", () => {
     expect(plainProviderError(claude, "anthropic")).toBe("messages: field required");
   });
 
+  it("keeps the innermost message, whatever the order of the keys", () => {
+    const outerFirst = JSON.stringify({ message: "Request failed.", error: { message: "Inner." } });
+    const innerFirst = JSON.stringify({ error: { message: "Inner." }, message: "Request failed." });
+    expect(plainProviderError(outerFirst, "gemini")).toBe("Inner.");
+    expect(plainProviderError(innerFirst, "gemini")).toBe("Inner.");
+  });
+
   it("leaves a message that is not JSON as it is", () => {
     expect(plainProviderError("Network connection lost.", "gemini")).toBe(
       "Network connection lost.",
