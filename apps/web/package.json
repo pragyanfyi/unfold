@@ -21,6 +21,7 @@
     "@convex-dev/auth": "2.0.0",
     "@convex-dev/react-query": "0.1.0",
     "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@shadcn/react": "^0.3.1",
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/ai": "^1.8.0",
