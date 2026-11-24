@@ -20,6 +20,8 @@ export function AppHeader() {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
       <SidebarTrigger />
+      <img src="/logo-light.svg" alt="" className="size-6 dark:hidden" />
+      <img src="/logo-dark.svg" alt="" className="hidden size-6 dark:block" />
       <h1 className="text-sm font-medium">Unfold</h1>
       <div className="ml-auto" />
       <KeyButton />
