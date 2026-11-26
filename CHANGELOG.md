@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.0](https://github.com/pragyanfyi/unfold/compare/v0.8.0...v0.9.0) (2026-11-26)
+
+
+### Features
+
+* **web:** add the Unfold logo to the header and favicons ([#106](https://github.com/pragyanfyi/unfold/issues/106)) ([c79789c](https://github.com/pragyanfyi/unfold/commit/c79789c3e4d05cd4e9e9a6074b358bda1a41c0eb))
+* **web:** switch to the Rhea style with the Unfold teal palette ([#107](https://github.com/pragyanfyi/unfold/issues/107)) ([a310e56](https://github.com/pragyanfyi/unfold/commit/a310e567fdb62847de21963bfc126a5f73fbb75a))
+
+
+### Bug Fixes
+
+* **chat:** end a turn with an error when the model goes silent ([#92](https://github.com/pragyanfyi/unfold/issues/92)) ([cf525b6](https://github.com/pragyanfyi/unfold/commit/cf525b69ac3245b1999a42ee25bc138d24727620))
+* **chat:** show provider errors as one plain sentence that names the model ([#94](https://github.com/pragyanfyi/unfold/issues/94)) ([35990ab](https://github.com/pragyanfyi/unfold/commit/35990ab958f95892f1273d9516e8201f66bea648))
+* **deps:** bump convex from 1.50.0 to 1.51.0 ([#104](https://github.com/pragyanfyi/unfold/issues/104)) ([2e13a54](https://github.com/pragyanfyi/unfold/commit/2e13a546c052f4491af2b752d182d32322cfbdd7))
+* **deps:** bump lucide-react from 1.72.0 to 1.77.0 ([#101](https://github.com/pragyanfyi/unfold/issues/101)) ([021357d](https://github.com/pragyanfyi/unfold/commit/021357d1a9d1312dfed85cf48c8d638057aab05f))
+* **deps:** bump the tanstack group across 1 directory with 7 updates ([#96](https://github.com/pragyanfyi/unfold/issues/96)) ([330a908](https://github.com/pragyanfyi/unfold/commit/330a9085afb25c24b6d05b6fc2b0908f2c282eff))
+
 ## [0.8.0](https://github.com/pragyanfyi/unfold/compare/v0.7.0...v0.8.0) (2026-11-20)
 
 
